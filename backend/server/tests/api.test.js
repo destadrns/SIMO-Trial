@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { createApp } from '../app.js';
 import { closeDatabase, createDatabase, get } from '../db/database.js';
@@ -89,7 +89,7 @@ test('health and collection endpoints return data envelopes', async () => {
     assert.ok('data' in body, path);
   }
 
-  await loginAs('dewi.lestari@simo.test');
+  await loginAs('rina.wijaya@simo.test');
   for (const path of ['/api/users', '/api/audit-logs', '/api/qc-checklists']) {
     const { response, body } = await request(path);
     assert.equal(response.status, 200, path);
@@ -110,7 +110,7 @@ test('detail and nested endpoints return expected records', async () => {
     assert.equal(body.data.id, expectedId);
   }
 
-  await loginAs('dewi.lestari@simo.test');
+  await loginAs('rina.wijaya@simo.test');
   const userDetail = await request('/api/users/usr-owner');
   assert.equal(userDetail.response.status, 200);
   assert.equal(userDetail.body.data.id, 'usr-owner');
@@ -129,7 +129,7 @@ test('detail and nested endpoints return expected records', async () => {
 });
 
 test('audit logs support module and user filters', async () => {
-  await loginAs('dewi.lestari@simo.test');
+  await loginAs('rina.wijaya@simo.test');
   const { response, body } = await request('/api/audit-logs?module=Production&userId=usr-pm');
   assert.equal(response.status, 200);
   assert.ok(body.data.length > 0);
@@ -591,6 +591,9 @@ test('seed command remains idempotent', async () => {
     'delivery_checkins',
     'logistics_locations',
     'audit_logs',
+    'account_invites',
+    'password_reset_tokens',
+    'email_outbox',
   ];
   const beforeCounts = {};
 
@@ -607,3 +610,190 @@ test('seed command remains idempotent', async () => {
   }
 });
 
+test('account lifecycle schema is initialized', async () => {
+  const superAdmin = await get(
+    db,
+    `SELECT u.account_status, r.name AS role_name
+       FROM users u
+       JOIN roles r ON r.id = u.role_id
+      WHERE u.id = ?`,
+    ['usr-super-admin'],
+  );
+
+  assert.equal(superAdmin.account_status, 'ACTIVE');
+  assert.equal(superAdmin.role_name, 'Super Admin');
+
+  for (const table of ['account_invites', 'password_reset_tokens', 'email_outbox']) {
+    const row = await get(db, `SELECT COUNT(*) AS count FROM ${table}`);
+    assert.equal(row.count, 0, table);
+  }
+});
+
+test('super admin invite activates account with one-time token', async () => {
+  await loginAs('super.admin@simo.test');
+
+  const invite = await request('/api/users/invites', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Invite Test User',
+      email: 'invite.test@simo.test',
+      roleId: 'foreman',
+      site: 'Test Bay',
+    }),
+  });
+  assert.equal(invite.response.status, 201);
+  assert.equal(invite.body.data.user.accountStatus, 'INVITED');
+  assert.ok(invite.body.data.delivery.inviteToken.startsWith('invite_'));
+  const storedInvite = await get(db, 'SELECT token_hash FROM account_invites WHERE user_id = ?', [invite.body.data.user.id]);
+  assert.notEqual(storedInvite.token_hash, invite.body.data.delivery.inviteToken);
+  const inviteOutbox = await get(db, 'SELECT payload_json FROM email_outbox WHERE recipient_email = ?', ['invite.test@simo.test']);
+  assert.equal(inviteOutbox.payload_json.includes(invite.body.data.delivery.inviteToken), false);
+
+  currentToken = null;
+  const blockedLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'invite.test@simo.test', password: 'NewPass123' }),
+  });
+  assert.equal(blockedLogin.response.status, 401);
+
+  const accepted = await request('/api/auth/invites/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token: invite.body.data.delivery.inviteToken, password: 'NewPass123' }),
+  });
+  assert.equal(accepted.response.status, 200);
+  assert.equal(accepted.body.data.user.accountStatus, 'ACTIVE');
+
+  const reused = await request('/api/auth/invites/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token: invite.body.data.delivery.inviteToken, password: 'NewPass123' }),
+  });
+  assert.equal(reused.response.status, 400);
+  assert.equal(reused.body.error.code, 'INVALID_OR_EXPIRED_TOKEN');
+
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'invite.test@simo.test', password: 'NewPass123' }),
+  });
+  assert.equal(login.response.status, 200);
+  assert.equal(login.body.data.user.email, 'invite.test@simo.test');
+});
+
+test('forgot password uses generic response and one-time reset token', async () => {
+  const missing = await request('/api/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'missing@simo.test' }),
+  });
+  assert.equal(missing.response.status, 200);
+  assert.equal(missing.body.data.delivery, undefined);
+
+  const forgot = await request('/api/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'dewi.lestari@simo.test' }),
+  });
+  assert.equal(forgot.response.status, 200);
+  assert.ok(forgot.body.data.delivery.resetToken.startsWith('reset_'));
+
+  const reset = await request('/api/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token: forgot.body.data.delivery.resetToken, password: 'Changed123' }),
+  });
+  assert.equal(reset.response.status, 200);
+
+  const reused = await request('/api/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token: forgot.body.data.delivery.resetToken, password: 'Changed123' }),
+  });
+  assert.equal(reused.response.status, 400);
+  assert.equal(reused.body.error.code, 'INVALID_OR_EXPIRED_TOKEN');
+
+  const oldLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'dewi.lestari@simo.test', password: 'password' }),
+  });
+  assert.equal(oldLogin.response.status, 401);
+
+  const newLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'dewi.lestari@simo.test', password: 'Changed123' }),
+  });
+  assert.equal(newLogin.response.status, 200);
+});
+
+
+
+test('super admin can read account lifecycle audit logs', async () => {
+  await loginAs('super.admin@simo.test');
+
+  const response = await request('/api/audit-logs?module=AccountLifecycle');
+  assert.equal(response.response.status, 200);
+  assert.ok(Array.isArray(response.body.data));
+});
+
+test('admin lifecycle endpoints enforce super admin and status safety', async () => {
+  await loginAs('rina.wijaya@simo.test');
+  const forbidden = await request('/api/admin/users/invite', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Nope', email: 'nope@simo.test', roleId: 'foreman' }),
+  });
+  assert.equal(forbidden.response.status, 403);
+
+  await loginAs('super.admin@simo.test');
+  const invited = await request('/api/admin/users/invite', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Admin API User', email: 'admin.api@simo.test', roleId: 'foreman' }),
+  });
+  assert.equal(invited.response.status, 201);
+  assert.ok(invited.body.data.delivery.inviteUrl.includes('/accept-invite?token='));
+
+  const list = await request('/api/admin/users');
+  assert.equal(list.response.status, 200);
+  assert.ok(list.body.data.some((user) => user.email === 'admin.api@simo.test'));
+
+  const disabled = await request(`/api/admin/users/${invited.body.data.user.id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'DISABLED' }),
+  });
+  assert.equal(disabled.response.status, 200);
+  assert.equal(disabled.body.data.accountStatus, 'DISABLED');
+
+  currentToken = null;
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'admin.api@simo.test', password: 'AnyPass123' }),
+  });
+  assert.equal(login.response.status, 401);
+});
+
+test('expired invite token is rejected', async () => {
+  await loginAs('super.admin@simo.test');
+  const invited = await request('/api/admin/users/invite', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Expired User', email: 'expired.user@simo.test', roleId: 'foreman' }),
+  });
+  assert.equal(invited.response.status, 201);
+  const row = await get(db, 'SELECT id FROM account_invites WHERE user_id = ?', [invited.body.data.user.id]);
+  const { run } = await import('../db/database.js');
+  await run(db, 'UPDATE account_invites SET expires_at = ? WHERE id = ?', ['2000-01-01T00:00:00.000Z', row.id]);
+
+  currentToken = null;
+  const accepted = await request('/api/auth/invite/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token: invited.body.data.delivery.inviteToken, password: 'NewPass123', confirmPassword: 'NewPass123' }),
+  });
+  assert.equal(accepted.response.status, 400);
+  assert.equal(accepted.body.error.code, 'INVALID_OR_EXPIRED_TOKEN');
+});
+
+test('auth lifecycle audit events do not store secrets', async () => {
+  const loginFailure = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'dewi.lestari@simo.test', password: 'wrong-password' }),
+  });
+  assert.equal(loginFailure.response.status, 401);
+
+  await loginAs('super.admin@simo.test');
+  const rows = await request('/api/audit-logs?module=Auth');
+  assert.equal(rows.response.status, 200);
+  assert.ok(rows.body.data.some((log) => ['LOGIN_SUCCESS', 'LOGIN_FAILED'].includes(log.actionType)));
+  assert.equal(JSON.stringify(rows.body.data).includes('wrong-password'), false);
+});

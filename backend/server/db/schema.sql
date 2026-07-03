@@ -14,6 +14,41 @@ CREATE TABLE IF NOT EXISTS users (
   role_id TEXT NOT NULL REFERENCES roles(id),
   site TEXT NOT NULL DEFAULT '',
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+  account_status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (account_status IN ('INVITED', 'ACTIVE', 'SUSPENDED', 'DISABLED')),
+  invited_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  invited_at TEXT,
+  activated_at TEXT,
+  password_changed_at TEXT,
+  disabled_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS account_invites (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  invited_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  expires_at TEXT NOT NULL,
+  accepted_at TEXT,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id TEXT PRIMARY KEY,
+  recipient_email TEXT NOT NULL,
+  template TEXT NOT NULL,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  sent_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -135,6 +170,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status);
+CREATE INDEX IF NOT EXISTS idx_account_invites_user_id ON account_invites(user_id);
+CREATE INDEX IF NOT EXISTS idx_account_invites_token_hash ON account_invites(token_hash);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token_hash ON password_reset_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_created_at ON email_outbox(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_warehouses_project_id ON warehouses(project_id);
 CREATE INDEX IF NOT EXISTS idx_work_items_project_id ON work_items(project_id);
 CREATE INDEX IF NOT EXISTS idx_work_items_warehouse_id ON work_items(warehouse_id);

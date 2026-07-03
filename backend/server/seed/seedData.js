@@ -4,6 +4,7 @@ export const QC_STATUS_OPTIONS = ['Pending', 'Passed QC', 'Rework'];
 
 export const seedData = {
   roles: [
+    { id: 'super-admin', name: 'Super Admin' },
     { id: 'owner', name: 'Owner' },
     { id: 'production-manager', name: 'Production Manager' },
     { id: 'foreman', name: 'Foreman' },
@@ -11,6 +12,7 @@ export const seedData = {
     { id: 'admin', name: 'Admin' },
   ],
   users: [
+    { id: 'usr-super-admin', name: 'Super Admin SIMO', roleId: 'super-admin', site: 'HQ' },
     { id: 'usr-owner', name: 'Rina Wijaya', roleId: 'owner', site: 'Pabrik Utama, IKN' },
     { id: 'usr-pm', name: 'Budi Santoso', roleId: 'production-manager', site: 'Pabrik Utama, IKN' },
     { id: 'usr-foreman', name: 'Joko Anwar', roleId: 'foreman', site: 'Warehouse Line A' },

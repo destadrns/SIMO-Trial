@@ -4,6 +4,7 @@ import { closeDatabase, createDatabase, run, withTransaction } from '../db/datab
 import { hashPassword } from '../utils/password.js';
 
 const roleDescriptions = {
+  'super-admin': 'Manages internal account lifecycle and platform access.',
   owner: 'Business owner with operational visibility.',
   'production-manager': 'Manages production progress and delivery readiness.',
   foreman: 'Updates production work item execution.',
@@ -12,6 +13,7 @@ const roleDescriptions = {
 };
 
 const userEmails = {
+  'usr-super-admin': 'super.admin@simo.test',
   'usr-owner': 'rina.wijaya@simo.test',
   'usr-pm': 'budi.santoso@simo.test',
   'usr-foreman': 'joko.anwar@simo.test',

@@ -15,6 +15,12 @@ export function serializeUser(row) {
     roleName: row.role_name,
     site: row.site,
     isActive: Boolean(row.is_active),
+    accountStatus: row.account_status,
+    invitedBy: row.invited_by,
+    invitedAt: row.invited_at,
+    activatedAt: row.activated_at,
+    passwordChangedAt: row.password_changed_at,
+    disabledAt: row.disabled_at,
     createdAt: row.created_at,
   };
 }

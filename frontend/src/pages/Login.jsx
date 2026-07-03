@@ -3,6 +3,7 @@ import { useAppData } from '../context/AppDataCore';
 import { LogIn, Mail, Lock, ShieldAlert, UserRoundCheck } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [
+  { role: 'Super Admin', email: 'super.admin@simo.test' },
   { role: 'Admin', email: 'dewi.lestari@simo.test' },
   { role: 'Owner', email: 'rina.wijaya@simo.test' },
   { role: 'Production Manager', email: 'budi.santoso@simo.test' },
@@ -146,6 +147,12 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          <div className="mt-4 text-center">
+            <a href="/forgot-password" className="text-sm font-bold text-blue-700 hover:text-blue-800">
+              Lupa password?
+            </a>
+          </div>
 
           <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 flex items-center gap-2">

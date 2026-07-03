@@ -113,8 +113,9 @@ export function AppDataProvider({ children }) {
     return {
       canUpdateProduction: ['foreman', 'production-manager', 'admin'].includes(roleId),
       canSubmitQc: ['qc-inspector', 'admin'].includes(roleId),
-      canViewAudit: ['owner', 'production-manager', 'admin'].includes(roleId),
+      canViewAudit: ['owner', 'production-manager', 'admin', 'super-admin'].includes(roleId),
       canAccessLogistics: ['owner', 'production-manager', 'admin'].includes(roleId),
+      canManageAccounts: roleId === 'super-admin',
     };
   }, [activeUser]);
 
@@ -190,8 +191,8 @@ export function AppDataProvider({ children }) {
       const requestUser = requestToken ? decodeJwt(requestToken) : null;
       const roleId = requestUser?.roleId;
       const headers = customToken ? { Authorization: `Bearer ${customToken}` } : {};
-      const canReadUsers = ['admin', 'owner'].includes(roleId);
-      const canReadAuditLogs = ['admin', 'owner', 'production-manager'].includes(roleId);
+      const canReadUsers = ['admin', 'owner', 'super-admin'].includes(roleId);
+      const canReadAuditLogs = ['admin', 'owner', 'production-manager', 'super-admin'].includes(roleId);
       const canReadQcChecklists = ['admin', 'owner', 'production-manager', 'qc-inspector'].includes(roleId);
       const [
         rolesRes,

@@ -520,3 +520,60 @@ Untuk production live client, lanjutkan hardening pada:
 - Migration
 - Monitoring
 - Full QA regression
+
+---
+
+## Internal Account Lifecycle
+
+SIMO tidak menyediakan public registration. Akun internal dibuat lewat undangan Super Admin agar lifecycle user tetap terkontrol dan terekam audit.
+
+### Policy
+
+- Tidak ada tombol **Create Account** atau public self-registration di login.
+- Super Admin mengundang user dari halaman **Accounts/User Management**.
+- Invite/reset token hanya disimpan sebagai hash SHA-256 di database.
+- Raw token hanya muncul sebagai fallback development response jika SMTP belum dikonfigurasi.
+- Token invite dan reset bersifat one-time-use serta punya expiry.
+
+### Flow
+
+1. Super Admin login memakai `super.admin@simo.test`.
+2. Super Admin buka **Accounts** dan invite user baru.
+3. Backend membuat user `INVITED`, menyimpan hash token, dan membuat email outbox entry tanpa raw token.
+4. User membuka `/accept-invite?token=...`, membuat password sendiri, lalu akun menjadi `ACTIVE`.
+5. Forgot password memakai `/forgot-password`, reset memakai `/reset-password?token=...`.
+6. Audit log mencatat `INVITE_USER`, `RESEND_INVITE`, `ACCEPT_INVITE`, `ACTIVATE_USER`, `FORGOT_PASSWORD_REQUESTED`, `RESET_PASSWORD_COMPLETED`, `LOGIN_SUCCESS`, dan `LOGIN_FAILED` tanpa password/token mentah.
+
+### Email Environment
+
+```env
+APP_BASE_URL=http://localhost:5173
+EMAIL_HOST=
+EMAIL_PORT=587
+EMAIL_USER=
+EMAIL_PASS=
+EMAIL_FROM="SIMO Mugi Jaya <no-reply@example.com>"
+```
+
+Jika `EMAIL_HOST` kosong, backend memakai development fallback dan mengembalikan invite/reset URL di API response untuk demo lokal. Production harus memakai SMTP/transactional email dan HTTPS.
+
+### Account Lifecycle API
+
+```text
+GET    /api/admin/users
+POST   /api/admin/users/invite
+POST   /api/admin/users/:id/resend-invite
+PATCH  /api/admin/users/:id/role
+PATCH  /api/admin/users/:id/status
+GET    /api/auth/invite/verify?token=...
+POST   /api/auth/invite/accept
+POST   /api/auth/password/forgot
+GET    /api/auth/password/reset/verify?token=...
+POST   /api/auth/password/reset
+```
+
+### Known Limitations
+
+- JWT masih disimpan di `localStorage` untuk demo; production sebaiknya pindah ke HttpOnly Secure SameSite cookie.
+- SMTP asli belum diaktifkan; fallback development tidak boleh dipakai production.
+- Migration system formal belum ada; schema masih additive lewat startup guard.

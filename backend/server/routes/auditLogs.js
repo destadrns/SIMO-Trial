@@ -1,10 +1,13 @@
 import { Router } from 'express';
 import { all } from '../db/database.js';
+import { requireAuth, requireRoles } from '../utils/auth.js';
 import { asyncHandler, sendData } from '../utils/http.js';
 import { serializeAuditLog } from '../utils/serializers.js';
 
 export function createAuditLogsRouter(db) {
   const router = Router();
+
+  router.use(requireAuth, requireRoles('Admin', 'Owner', 'Production Manager'));
 
   router.get('/', asyncHandler(async (req, res) => {
     const conditions = [];

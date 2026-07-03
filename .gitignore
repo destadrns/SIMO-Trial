@@ -24,6 +24,7 @@ coverage
 docs/
 *.md
 !README.md
+!SECURITY_REMEDIATION_SUMMARY.md
 
 # Logs
 logs

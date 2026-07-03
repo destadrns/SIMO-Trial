@@ -132,6 +132,7 @@ export function serializeLogisticsManifest(row) {
   return {
     id: row.id,
     manifestNumber: row.manifest_number,
+    trackingToken: row.tracking_token,
     projectId: row.project_id,
     projectName: row.project_name,
     projectCode: row.project_code,

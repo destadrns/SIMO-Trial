@@ -1,6 +1,7 @@
-﻿import { pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { seedData } from './seedData.js';
 import { closeDatabase, createDatabase, run, withTransaction } from '../db/database.js';
+import { hashPassword } from '../utils/password.js';
 
 const roleDescriptions = {
   owner: 'Business owner with operational visibility.',
@@ -122,12 +123,18 @@ export async function seedDatabase({ databasePath, db: providedDb } = {}) {
       }
 
       for (const user of seedData.users) {
+        const passwordHash = hashPassword('password', `demo-${user.id}`);
         await run(
           db,
           `INSERT OR IGNORE INTO users
-            (id, name, email, role_id, site, is_active, created_at)
-           VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)`,
-          [user.id, user.name, userEmails[user.id], user.roleId, user.site],
+            (id, name, email, password_hash, role_id, site, is_active, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)`,
+          [user.id, user.name, userEmails[user.id], passwordHash, user.roleId, user.site],
+        );
+        await run(
+          db,
+          "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ''",
+          [passwordHash, user.id],
         );
       }
 
@@ -216,13 +223,14 @@ export async function seedDatabase({ databasePath, db: providedDb } = {}) {
         await run(
           db,
           `INSERT OR IGNORE INTO logistics_manifests
-            (id, manifest_number, project_id, driver_name, driver_phone, vehicle_plate,
+            (id, manifest_number, tracking_token, project_id, driver_name, driver_phone, vehicle_plate,
              vehicle_type, origin, destination, delivery_status, departure_time, arrival_time,
              notes, created_by, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           [
             manifest.id,
             manifest.manifestNumber,
+            `track-${manifest.id}`,
             manifest.projectId,
             manifest.driverName,
             manifest.driverPhone,
@@ -236,6 +244,11 @@ export async function seedDatabase({ databasePath, db: providedDb } = {}) {
             manifest.notes,
             manifest.createdBy,
           ],
+        );
+        await run(
+          db,
+          "UPDATE logistics_manifests SET tracking_token = ? WHERE id = ? AND (tracking_token IS NULL OR tracking_token = '')",
+          [`track-${manifest.id}`, manifest.id],
         );
       }
 

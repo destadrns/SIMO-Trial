@@ -2,9 +2,9 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { get } from '../db/database.js';
 import { asyncHandler, HttpError, sendData } from '../utils/http.js';
+import { getJwtSecret } from '../utils/auth.js';
+import { verifyPassword } from '../utils/password.js';
 import { serializeUser } from '../utils/serializers.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'simo-mugi-jaya-secret-key';
 
 export function createAuthRouter(db) {
   const router = Router();
@@ -16,10 +16,6 @@ export function createAuthRouter(db) {
       throw new HttpError(400, 'VALIDATION_ERROR', 'Email dan password harus diisi.');
     }
 
-    // Demo password check - allow "password" for any active seed user
-    if (password !== 'password') {
-      throw new HttpError(401, 'INVALID_CREDENTIALS', 'Email atau password salah.');
-    }
 
     const user = await get(
       db,
@@ -30,7 +26,7 @@ export function createAuthRouter(db) {
       [String(email).trim().toLowerCase()]
     );
 
-    if (!user) {
+    if (!user || !verifyPassword(password, user.password_hash)) {
       throw new HttpError(401, 'INVALID_CREDENTIALS', 'Email atau password salah.');
     }
 
@@ -42,7 +38,7 @@ export function createAuthRouter(db) {
         roleId: user.role_id,
         roleName: user.role_name,
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '24h' }
     );
 

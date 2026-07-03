@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import pg from 'pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -24,8 +24,6 @@ export function translateSql(sql) {
   return translated;
 }
 
-const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/simo_system';
-const DEFAULT_TEST_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5432/simo_system_test';
 const DATABASE_ERROR_HINTS = {
   ECONNREFUSED: 'PostgreSQL refused the connection. Confirm the PostgreSQL service is running and DATABASE_URL uses the PostgreSQL port, usually 5432.',
   '28P01': 'PostgreSQL rejected the username or password. Check the local PostgreSQL credentials.',
@@ -34,11 +32,18 @@ const DATABASE_ERROR_HINTS = {
 };
 
 function resolveConnectionString(databasePath) {
-  if (databasePath === ':memory:') {
-    return process.env.DATABASE_URL_TEST || process.env.DATABASE_URL || DEFAULT_TEST_DATABASE_URL;
+  if (databasePath && databasePath !== ':memory:') {
+    return databasePath;
   }
 
-  return databasePath || process.env.DATABASE_URL || DEFAULT_DATABASE_URL;
+  const envName = databasePath === ':memory:' ? 'DATABASE_URL_TEST' : 'DATABASE_URL';
+  const connectionString = process.env[envName];
+
+  if (!connectionString) {
+    throw new Error(`${envName} is required. Create backend/.env from backend/.env.example and set a PostgreSQL connection string.`);
+  }
+
+  return connectionString;
 }
 
 function parseInvalidConnectionString(connectionString) {
@@ -176,6 +181,8 @@ export async function initializeDatabase(db, dropTables = false) {
     }
   }
   await exec(db, schema);
+  await exec(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''");
+  await exec(db, 'ALTER TABLE logistics_manifests ADD COLUMN IF NOT EXISTS tracking_token TEXT UNIQUE');
   return db;
 }
 
@@ -232,4 +239,3 @@ export async function withTransaction(db, operation) {
     client.release();
   }
 }
-

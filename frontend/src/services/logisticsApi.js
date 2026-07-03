@@ -1,4 +1,4 @@
-﻿import { apiRequest } from './apiClient';
+import { apiRequest } from './apiClient';
 
 export function getLogisticsManifests() {
   return apiRequest('/logistics/manifests');
@@ -12,6 +12,13 @@ export function createLogisticsManifest(payload) {
   return apiRequest('/logistics/manifests', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+
+export function regenerateLogisticsTrackingToken(id) {
+  return apiRequest(`/logistics/manifests/${encodeURIComponent(id)}/tracking-token/regenerate`, {
+    method: 'POST',
   });
 }
 

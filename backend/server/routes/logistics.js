@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { all, get, run, withTransaction } from '../db/database.js';
 import { requireAuth } from '../utils/auth.js';
@@ -47,6 +47,26 @@ function optionalAuth(req, res, next) {
   }
 
   requireAuth(req, res, next);
+}
+
+
+function getTrackingToken(req) {
+  return String(req.query.trackingToken ?? req.query.token ?? req.body?.trackingToken ?? req.headers['x-tracking-token'] ?? '').trim();
+}
+
+function requireTrackingAccess(req, manifest) {
+  if (req.user) {
+    return;
+  }
+
+  const token = getTrackingToken(req);
+  if (!token) {
+    throw new HttpError(401, 'TRACKING_TOKEN_REQUIRED', 'Tracking token is required for driver location access.');
+  }
+
+  if (!manifest.tracking_token || token !== manifest.tracking_token) {
+    throw new HttpError(403, 'INVALID_TRACKING_TOKEN', 'Tracking token is invalid for this manifest.');
+  }
 }
 
 function requireBoundedNumber(value, field, min, max) {
@@ -171,9 +191,10 @@ export function createLogisticsRouter(db) {
 
   router.post('/manifests/:id/locations', optionalAuth, asyncHandler(async (req, res) => {
     const manifest = requireRecord(
-      await get(db, 'SELECT id FROM logistics_manifests WHERE id = ?', [req.params.id]),
+      await get(db, 'SELECT id, tracking_token FROM logistics_manifests WHERE id = ?', [req.params.id]),
       'Logistics manifest',
     );
+    requireTrackingAccess(req, manifest);
     const payload = req.body || {};
     const id = `ll-${randomUUID()}`;
     const latitude = requireBoundedNumber(payload.latitude, 'latitude', -90, 90);
@@ -207,10 +228,11 @@ export function createLogisticsRouter(db) {
   }));
 
   router.get('/manifests/:id/locations/latest', optionalAuth, asyncHandler(async (req, res) => {
-    requireRecord(
-      await get(db, 'SELECT id FROM logistics_manifests WHERE id = ?', [req.params.id]),
+    const manifest = requireRecord(
+      await get(db, 'SELECT id, tracking_token FROM logistics_manifests WHERE id = ?', [req.params.id]),
       'Logistics manifest',
     );
+    requireTrackingAccess(req, manifest);
 
     const latestLocation = await get(
       db,
@@ -229,10 +251,11 @@ export function createLogisticsRouter(db) {
   }));
 
   router.get('/manifests/:id/locations/history', optionalAuth, asyncHandler(async (req, res) => {
-    requireRecord(
-      await get(db, 'SELECT id FROM logistics_manifests WHERE id = ?', [req.params.id]),
+    const manifest = requireRecord(
+      await get(db, 'SELECT id, tracking_token FROM logistics_manifests WHERE id = ?', [req.params.id]),
       'Logistics manifest',
     );
+    requireTrackingAccess(req, manifest);
 
     const limit = parseLocationHistoryLimit(req.query.limit);
     const rows = await all(
@@ -286,6 +309,7 @@ export function createLogisticsRouter(db) {
     const deliveryStatus = validateStatus(payload.deliveryStatus || 'Prepared');
     const actor = await resolveActor(db, req.user.id);
     const id = `lm-${randomUUID()}`;
+    const trackingToken = randomUUID();
 
     if (payload.projectId) {
       requireRecord(await get(db, 'SELECT id FROM projects WHERE id = ?', [payload.projectId]), 'Project');
@@ -293,12 +317,13 @@ export function createLogisticsRouter(db) {
 
     await withTransaction(db, async () => {
       await run(db, `INSERT INTO logistics_manifests
-          (id, manifest_number, project_id, driver_name, driver_phone, vehicle_plate,
+          (id, manifest_number, tracking_token, project_id, driver_name, driver_phone, vehicle_plate,
            vehicle_type, origin, destination, delivery_status, departure_time,
            arrival_time, notes, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [
         id,
         manifestNumber,
+        trackingToken,
         payload.projectId || null,
         driverName,
         payload.driverPhone || '',
@@ -328,6 +353,37 @@ export function createLogisticsRouter(db) {
     });
 
     sendData(res, serializeLogisticsManifest(await getManifest(db, id)), { status: 201 });
+  }));
+
+  router.post('/manifests/:id/tracking-token/regenerate', asyncHandler(async (req, res) => {
+    const manifest = requireRecord(await getManifest(db, req.params.id), 'Logistics manifest');
+    const actor = await resolveActor(db, req.user.id);
+    const nextTrackingToken = randomUUID();
+
+    const updated = await withTransaction(db, async () => {
+      await run(
+        db,
+        'UPDATE logistics_manifests SET tracking_token = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [nextTrackingToken, manifest.id],
+      );
+
+      await writeAuditLog(db, {
+        actor,
+        module: 'Logistics',
+        actionType: 'REGENERATE_TRACKING_TOKEN',
+        action: 'UPDATE',
+        entityType: 'logistics_manifests',
+        entityId: manifest.id,
+        tableName: 'logistics_manifests',
+        previousValue: 'redacted',
+        newValue: 'redacted',
+        description: `Regenerated driver tracking token for ${manifest.manifest_number}.`,
+      });
+
+      return getManifest(db, manifest.id);
+    });
+
+    sendData(res, serializeLogisticsManifest(updated), { meta: { auditCreated: true } });
   }));
 
   router.patch('/manifests/:id/status', asyncHandler(async (req, res) => {

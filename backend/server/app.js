@@ -1,5 +1,4 @@
-﻿import cors from 'cors';
-import path from 'node:path';
+import cors from 'cors';
 import express from 'express';
 import { get } from './db/database.js';
 import { createAuthRouter } from './routes/auth.js';
@@ -17,9 +16,12 @@ import {
   createWarehouseWorkItemsRouter,
   createWorkItemsRouter,
 } from './routes/workItems.js';
+import { getJwtSecret } from './utils/auth.js';
 import { asyncHandler, HttpError, sendData } from './utils/http.js';
 
 export function createApp({ db }) {
+  getJwtSecret();
+
   const app = express();
 
   app.disable('x-powered-by');
@@ -29,7 +31,6 @@ export function createApp({ db }) {
     allowedHeaders: ['Authorization', 'Content-Type'],
   }));
   app.use(express.json({ limit: '1mb' }));
-  app.use('/uploads', express.static(path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'server/public/uploads')));
 
   app.get('/api/health', asyncHandler(async (req, res) => {
     try {
@@ -119,4 +120,3 @@ export function createApp({ db }) {
 
   return app;
 }
-

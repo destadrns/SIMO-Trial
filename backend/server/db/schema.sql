@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL DEFAULT '',
   role_id TEXT NOT NULL REFERENCES roles(id),
   site TEXT NOT NULL DEFAULT '',
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
@@ -76,6 +77,7 @@ CREATE TABLE IF NOT EXISTS qc_checklists (
 CREATE TABLE IF NOT EXISTS logistics_manifests (
   id TEXT PRIMARY KEY,
   manifest_number TEXT NOT NULL UNIQUE,
+  tracking_token TEXT UNIQUE,
   project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
   driver_name TEXT NOT NULL,
   driver_phone TEXT NOT NULL DEFAULT '',

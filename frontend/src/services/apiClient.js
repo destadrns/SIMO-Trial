@@ -1,5 +1,7 @@
-﻿export const useBackendApi =
+export const useBackendApi =
   String(import.meta.env.VITE_USE_BACKEND_API || 'true').toLowerCase() === 'true';
+
+const TOKEN_KEY = 'simo-mugi-jaya-token';
 
 const apiHostUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001')
   .replace(/\/$/, '')
@@ -11,7 +13,7 @@ function normalizeApiPath(path) {
 }
 
 export async function apiRequest(path, options = {}) {
-  const token = window.localStorage.getItem('simo-mugi-jaya-token');
+  const token = window.localStorage.getItem(TOKEN_KEY);
   const headers = {
     ...options.headers,
   };
@@ -40,6 +42,10 @@ export async function apiRequest(path, options = {}) {
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      window.localStorage.removeItem(TOKEN_KEY);
+    }
+
     const error = new Error(payload?.error?.message || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
     error.status = response.status;
     error.code = payload?.error?.code;

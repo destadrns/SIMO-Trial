@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { all, get } from '../db/database.js';
+import { requireAuth, requireRoles } from '../utils/auth.js';
 import { asyncHandler, requireRecord, sendData } from '../utils/http.js';
 import { serializeUser } from '../utils/serializers.js';
 
@@ -11,6 +12,8 @@ const USER_SELECT = `
 
 export function createUsersRouter(db) {
   const router = Router();
+
+  router.use(requireAuth, requireRoles('Admin', 'Owner'));
 
   router.get('/', asyncHandler(async (req, res) => {
     const rows = await all(db, `${USER_SELECT} ORDER BY u.name`);

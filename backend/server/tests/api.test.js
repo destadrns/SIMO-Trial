@@ -281,6 +281,51 @@ test('QC submission updates shipping gate and creates an audit log', async () =>
   currentToken = null; // reset
 });
 
+test('valid QC evidence upload stores generated image reference', async () => {
+  const loginRes = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'siti.nurhaliza@simo.test', password: 'password' }),
+  });
+  currentToken = loginRes.body.data.token;
+
+  const pngBytes = Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  ]);
+  const form = new FormData();
+  form.append('workItemId', 'wi-004');
+  form.append('materialName', 'Custom Mullion Profile');
+  form.append('length', '120');
+  form.append('width', '40');
+  form.append('thickness', '2');
+  form.append('qcStatus', 'Rework');
+  form.append('notes', 'Valid PNG evidence should be stored.');
+  form.append('evidencePhoto', new Blob([pngBytes], { type: 'image/png' }), 'evidence.png');
+
+  const created = await request('/api/qc-checklists', {
+    method: 'POST',
+    body: form,
+  });
+
+  assert.equal(created.response.status, 201);
+  assert.match(created.body.data.evidencePhotoReference, /^qc-[0-9a-f-]+\.png$/);
+
+  const evidenceFilename = created.body.data.evidencePhotoReference;
+  const publicEvidence = await fetch(`${baseUrl}/uploads/${evidenceFilename}`);
+  assert.equal(publicEvidence.status, 404);
+
+  const noTokenEvidence = await fetch(`${baseUrl}/api/qc-checklists/evidence/${evidenceFilename}`);
+  assert.equal(noTokenEvidence.status, 401);
+
+  const authenticatedEvidence = await fetch(`${baseUrl}/api/qc-checklists/evidence/${evidenceFilename}`, {
+    headers: { Authorization: `Bearer ${currentToken}` },
+  });
+  assert.equal(authenticatedEvidence.status, 200);
+  assert.equal(authenticatedEvidence.headers.get('content-type'), 'image/png');
+
+  currentToken = null;
+});
+
 test('invalid QC evidence upload returns a client error', async () => {
   const loginRes = await request('/api/auth/login', {
     method: 'POST',
@@ -306,6 +351,24 @@ test('invalid QC evidence upload returns a client error', async () => {
   assert.equal(invalidEvidence.response.status, 400);
   assert.equal(invalidEvidence.body.error.code, 'INVALID_EVIDENCE_FILE');
 
+  const spoofedForm = new FormData();
+  spoofedForm.append('workItemId', 'wi-003');
+  spoofedForm.append('materialName', 'Window Lockset A');
+  spoofedForm.append('length', '120');
+  spoofedForm.append('width', '40');
+  spoofedForm.append('thickness', '2');
+  spoofedForm.append('qcStatus', 'Rework');
+  spoofedForm.append('notes', 'Spoofed evidence type should be rejected.');
+  spoofedForm.append('evidencePhoto', new Blob(['not an image'], { type: 'image/png' }), 'evidence.png');
+
+  const spoofedEvidence = await request('/api/qc-checklists', {
+    method: 'POST',
+    body: spoofedForm,
+  });
+
+  assert.equal(spoofedEvidence.response.status, 400);
+  assert.equal(spoofedEvidence.body.error.code, 'INVALID_EVIDENCE_FILE');
+
   currentToken = null;
 });
 
@@ -329,14 +392,52 @@ test('logistics status update supports Arrived without server errors', async () 
   currentToken = null;
 });
 
+test('logistics tracking token regeneration revokes old driver link', async () => {
+  const loginRes = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'dewi.lestari@simo.test', password: 'password' }),
+  });
+  currentToken = loginRes.body.data.token;
+
+  const regenerated = await request('/api/logistics/manifests/lm-demo-003/tracking-token/regenerate', {
+    method: 'POST',
+  });
+
+  assert.equal(regenerated.response.status, 200);
+  assert.notEqual(regenerated.body.data.trackingToken, 'track-lm-demo-003');
+  assert.equal(regenerated.body.meta.auditCreated, true);
+  currentToken = null;
+
+  const oldTokenWrite = await request('/api/logistics/manifests/lm-demo-003/locations', {
+    method: 'POST',
+    body: JSON.stringify({
+      latitude: -6.2,
+      longitude: 106.816666,
+      trackingToken: 'track-lm-demo-003',
+    }),
+  });
+  assert.equal(oldTokenWrite.response.status, 403);
+  assert.equal(oldTokenWrite.body.error.code, 'INVALID_TRACKING_TOKEN');
+
+  const newTokenWrite = await request('/api/logistics/manifests/lm-demo-003/locations', {
+    method: 'POST',
+    body: JSON.stringify({
+      latitude: -6.2,
+      longitude: 106.816666,
+      trackingToken: regenerated.body.data.trackingToken,
+    }),
+  });
+  assert.equal(newTokenWrite.response.status, 201);
+});
+
 test('logistics GPS endpoints store and return latest demo location', async () => {
-  const emptyLatest = await request('/api/logistics/manifests/lm-demo-002/locations/latest');
+  const emptyLatest = await request('/api/logistics/manifests/lm-demo-002/locations/latest?trackingToken=track-lm-demo-002');
   assert.equal(emptyLatest.response.status, 200);
   assert.equal(emptyLatest.body.success, true);
   assert.equal(emptyLatest.body.data, null);
   assert.equal(emptyLatest.body.message, 'No GPS location has been received for this manifest yet.');
 
-  const emptyHistory = await request('/api/logistics/manifests/lm-demo-002/locations/history?limit=50');
+  const emptyHistory = await request('/api/logistics/manifests/lm-demo-002/locations/history?limit=50&trackingToken=track-lm-demo-002');
   assert.equal(emptyHistory.response.status, 200);
   assert.equal(emptyHistory.body.success, true);
   assert.deepEqual(emptyHistory.body.data, []);
@@ -351,6 +452,7 @@ test('logistics GPS endpoints store and return latest demo location', async () =
       speed: null,
       heading: null,
       source: 'driver_geolocation',
+      trackingToken: 'track-lm-demo-001',
     }),
   });
 
@@ -367,30 +469,55 @@ test('logistics GPS endpoints store and return latest demo location', async () =
   const stored = await get(db, 'SELECT COUNT(*) AS count FROM logistics_locations WHERE manifest_id = ?', ['lm-demo-001']);
   assert.equal(stored.count, 1);
 
-  const latest = await request('/api/logistics/manifests/lm-demo-001/locations/latest');
+  const latest = await request('/api/logistics/manifests/lm-demo-001/locations/latest?trackingToken=track-lm-demo-001');
   assert.equal(latest.response.status, 200);
   assert.equal(latest.body.success, true);
   assert.equal(latest.body.data.id, created.body.data.id);
 
-  const history = await request('/api/logistics/manifests/lm-demo-001/locations/history?limit=50');
+  const history = await request('/api/logistics/manifests/lm-demo-001/locations/history?limit=50&trackingToken=track-lm-demo-001');
   assert.equal(history.response.status, 200);
   assert.equal(history.body.success, true);
   assert.ok(Array.isArray(history.body.data));
   assert.equal(history.body.meta.limit, 50);
   assert.ok(history.body.data.some((location) => location.id === created.body.data.id));
 
-  const limitedHistory = await request('/api/logistics/manifests/lm-demo-001/locations/history?limit=1');
+  const limitedHistory = await request('/api/logistics/manifests/lm-demo-001/locations/history?limit=1&trackingToken=track-lm-demo-001');
   assert.equal(limitedHistory.response.status, 200);
   assert.equal(limitedHistory.body.data.length, 1);
 });
 
 test('logistics GPS endpoints validate payloads and manifest ids', async () => {
+
+  const missingTrackingToken = await request('/api/logistics/manifests/lm-demo-001/locations', {
+    method: 'POST',
+    body: JSON.stringify({
+      latitude: -6.2,
+      longitude: 106.816666,
+    }),
+  });
+
+  assert.equal(missingTrackingToken.response.status, 401);
+  assert.equal(missingTrackingToken.body.error.code, 'TRACKING_TOKEN_REQUIRED');
+
+  const invalidTrackingToken = await request('/api/logistics/manifests/lm-demo-001/locations', {
+    method: 'POST',
+    body: JSON.stringify({
+      latitude: -6.2,
+      longitude: 106.816666,
+      trackingToken: 'wrong-token',
+    }),
+  });
+
+  assert.equal(invalidTrackingToken.response.status, 403);
+  assert.equal(invalidTrackingToken.body.error.code, 'INVALID_TRACKING_TOKEN');
+
   const invalidCoordinate = await request('/api/logistics/manifests/lm-demo-001/locations', {
     method: 'POST',
     body: JSON.stringify({
       latitude: -91,
       longitude: 106.816666,
       accuracy: 15,
+      trackingToken: 'track-lm-demo-001',
     }),
   });
 
@@ -416,7 +543,7 @@ test('logistics GPS endpoints validate payloads and manifest ids', async () => {
   assert.equal(invalidToken.response.status, 401);
   assert.equal(invalidToken.body.error.code, 'INVALID_TOKEN');
 
-  const invalidLimit = await request('/api/logistics/manifests/lm-demo-001/locations/history?limit=abc');
+  const invalidLimit = await request('/api/logistics/manifests/lm-demo-001/locations/history?limit=abc&trackingToken=track-lm-demo-001');
   assert.equal(invalidLimit.response.status, 400);
   assert.equal(invalidLimit.body.error.code, 'VALIDATION_ERROR');
   assert.equal(invalidLimit.body.error.details.field, 'limit');
@@ -479,3 +606,4 @@ test('seed command remains idempotent', async () => {
     assert.equal(afterCount, beforeCounts[table], table);
   }
 });
+

@@ -182,6 +182,7 @@ export async function initializeDatabase(db, dropTables = false) {
   }
   await exec(db, schema);
   await exec(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''");
+  await exec(db, 'ALTER TABLE logistics_manifests ADD COLUMN IF NOT EXISTS tracking_token TEXT UNIQUE');
   return db;
 }
 

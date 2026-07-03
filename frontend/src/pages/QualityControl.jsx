@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck, FileImage, PackageCheck, Ruler, ShieldCheck, Upload } from 'lucide-react';
 import { useAppData } from '../context/AppDataCore';
 import { QC_STATUS_OPTIONS } from '../data/seedData';
@@ -15,6 +15,17 @@ const statusHelp = {
   'Passed QC': 'Material can move to shipping preparation.',
   Rework: 'Material remains blocked until corrected.',
 };
+
+const TOKEN_KEY = 'simo-mugi-jaya-token';
+const apiHostUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api')
+  .replace(/\/$/, '')
+  .replace(/\/api$/, '');
+
+function isImageEvidence(reference) {
+  const value = String(reference || '').toLowerCase();
+  return value.startsWith('http') || /\.(jpe?g|png|webp)$/.test(value);
+}
+
 
 function buildFormFromItem(item) {
   return {
@@ -49,6 +60,7 @@ export default function QualityControl() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [evidenceUrls, setEvidenceUrls] = useState({});
 
   const filteredWorkItems = useMemo(
     () => data.workItems.filter((item) => item.projectId === form.projectId),
@@ -59,6 +71,47 @@ export default function QualityControl() {
   const passedCount = data.qcChecklists.filter((item) => item.qcStatus === 'Passed QC').length;
   const reworkCount = data.qcChecklists.filter((item) => item.qcStatus === 'Rework').length;
   const readyItems = data.workItems.filter((item) => item.readyToShip);
+
+
+  useEffect(() => {
+    const token = window.localStorage.getItem(TOKEN_KEY);
+    const evidenceNames = [...new Set(
+      data.qcChecklists
+        .map((record) => record.evidencePhoto)
+        .filter((reference) => reference && !String(reference).startsWith('http') && isImageEvidence(reference)),
+    )];
+    const objectUrls = [];
+    let cancelled = false;
+
+    async function loadEvidence() {
+      const entries = await Promise.all(evidenceNames.map(async (name) => {
+        try {
+          const response = await fetch(`${apiHostUrl}/api/qc-checklists/evidence/${encodeURIComponent(name)}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+
+          if (!response.ok) return [name, ''];
+          const objectUrl = URL.createObjectURL(await response.blob());
+          objectUrls.push(objectUrl);
+          return [name, objectUrl];
+        } catch {
+          return [name, ''];
+        }
+      }));
+
+      if (!cancelled) {
+        setEvidenceUrls(Object.fromEntries(entries.filter(([, url]) => url)));
+      }
+    }
+
+    loadEvidence();
+
+    return () => {
+      cancelled = true;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [data.qcChecklists]);
+
 
   const setSelectedItem = (item) => {
     setForm((currentForm) => ({
@@ -450,13 +503,9 @@ export default function QualityControl() {
                       </td>
                       <td className="px-5 py-4">
                         {record.evidencePhoto ? (
-                          record.evidencePhoto.endsWith('.jpg') || record.evidencePhoto.endsWith('.png') || record.evidencePhoto.endsWith('.jpeg') || record.evidencePhoto.startsWith('qc-') ? (
+                          isImageEvidence(record.evidencePhoto) && (record.evidencePhoto.startsWith('http') || evidenceUrls[record.evidencePhoto]) ? (
                             <img
-                              src={
-                                record.evidencePhoto.startsWith('http')
-                                  ? record.evidencePhoto
-                                  : `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace('/api', '')}/uploads/${record.evidencePhoto}`
-                              }
+                              src={record.evidencePhoto.startsWith('http') ? record.evidencePhoto : evidenceUrls[record.evidencePhoto]}
                               alt="Evidence"
                               className="h-10 w-10 cursor-pointer rounded-lg border border-slate-200 object-cover shadow-sm transition-transform hover:scale-105"
                               onError={(event) => {

@@ -223,13 +223,14 @@ export async function seedDatabase({ databasePath, db: providedDb } = {}) {
         await run(
           db,
           `INSERT OR IGNORE INTO logistics_manifests
-            (id, manifest_number, project_id, driver_name, driver_phone, vehicle_plate,
+            (id, manifest_number, tracking_token, project_id, driver_name, driver_phone, vehicle_plate,
              vehicle_type, origin, destination, delivery_status, departure_time, arrival_time,
              notes, created_by, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           [
             manifest.id,
             manifest.manifestNumber,
+            `track-${manifest.id}`,
             manifest.projectId,
             manifest.driverName,
             manifest.driverPhone,
@@ -243,6 +244,11 @@ export async function seedDatabase({ databasePath, db: providedDb } = {}) {
             manifest.notes,
             manifest.createdBy,
           ],
+        );
+        await run(
+          db,
+          "UPDATE logistics_manifests SET tracking_token = ? WHERE id = ? AND (tracking_token IS NULL OR tracking_token = '')",
+          [`track-${manifest.id}`, manifest.id],
         );
       }
 

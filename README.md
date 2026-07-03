@@ -359,7 +359,7 @@ Default URL:
 Frontend       http://localhost:5173
 Backend API    http://localhost:3001/api
 Health Check   http://localhost:3001/api/health
-Uploads        http://localhost:3001/uploads/<filename>
+Evidence API   http://localhost:3001/api/qc-checklists/evidence/<filename>
 ```
 
 ---
@@ -445,6 +445,9 @@ npm run db:seed
 - Gunakan HTTPS untuk production, terutama untuk browser geolocation.
 - Driver GPS browser membutuhkan permission location.
 - Batasi CORS origin sesuai domain production.
+- Evidence upload hanya menerima JPG, PNG, dan WEBP dengan validasi ekstensi, MIME type, dan magic bytes.
+- Driver GPS tracking memakai manifest-specific tracking token pada URL driver.
+- JWT masih disimpan di `localStorage` untuk kesederhanaan demo; production sebaiknya memakai HttpOnly Secure SameSite cookies.
 - Jangan expose database credential di repository.
 
 Cek env ignored:
@@ -463,6 +466,9 @@ git check-ignore -v backend/.env frontend/.env
 - Route deviation alert belum tersedia.
 - User management UI belum lengkap.
 - Migration system formal belum ditambahkan.
+- Evidence file disajikan lewat route authenticated; production bisa memakai object storage private.
+- Driver tracking link berisi token per manifest dan bisa di-regenerate dari halaman Logistics.
+- JWT masih disimpan di `localStorage` untuk demo, bukan cookie HttpOnly production.
 - Production deployment config belum final.
 
 ---

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Clock, Copy, ExternalLink, MapPin, RefreshCw, Truck, User } from 'lucide-react';
+import { AlertCircle, Check, Clock, Copy, ExternalLink, MapPin, RefreshCw, RotateCcw, Truck, User } from 'lucide-react';
 import {
   createDeliveryCheckin,
   getLogisticsManifests,
+  regenerateLogisticsTrackingToken,
   updateLogisticsManifestStatus,
 } from '../services/logisticsApi';
 import { useBackendApi } from '../services/apiClient';
@@ -53,7 +54,7 @@ export default function Logistics() {
     () => manifests.find((manifest) => manifest.id === selectedManifestId) || manifests[0],
     [manifests, selectedManifestId],
   );
-  const driverTrackingPath = selectedManifest ? `/driver/tracking/${encodeURIComponent(selectedManifest.id)}` : '';
+  const driverTrackingPath = selectedManifest ? `/driver/tracking/${encodeURIComponent(selectedManifest.id)}?token=${encodeURIComponent(selectedManifest.trackingToken || '')}` : '';
   const driverTrackingUrl = useMemo(() => {
     if (!driverTrackingPath) {
       return '';
@@ -146,6 +147,30 @@ export default function Logistics() {
   function handleOpenTrackingPage() {
     if (!driverTrackingUrl) return;
     window.open(driverTrackingUrl, '_blank', 'noopener,noreferrer');
+  }
+
+
+  async function handleRegenerateTrackingToken() {
+    if (!selectedManifest) return;
+    const confirmed = window.confirm('Regenerate driver tracking link? Existing copied links for this manifest will stop working.');
+    if (!confirmed) return;
+
+    setIsSaving(true);
+    setMessage('');
+    setError('');
+    setTrackingLinkCopied(false);
+
+    try {
+      const response = await regenerateLogisticsTrackingToken(selectedManifest.id);
+      setManifests((current) => current.map((manifest) => (
+        manifest.id === response.data.id ? response.data : manifest
+      )));
+      setMessage('Driver tracking link regenerated. Copy and share the new link.');
+    } catch (err) {
+      setError(err?.message || 'Tracking link could not be regenerated.');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function handleCopyTrackingLink() {
@@ -327,6 +352,16 @@ export default function Logistics() {
                   >
                     {trackingLinkCopied ? <Check size={16} /> : <Copy size={16} />}
                     {trackingLinkCopied ? 'Copied' : 'Copy Tracking Link'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRegenerateTrackingToken}
+                    disabled={!driverTrackingUrl || isSaving}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700 shadow-sm transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RotateCcw size={16} />
+                    Regenerate Link
                   </button>
                 </div>
                 <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold leading-5 text-violet-800">

@@ -1,4 +1,4 @@
-# Root env files
+﻿# Root env files
 .env
 .env.*
 backend/.env
@@ -24,7 +24,6 @@ coverage
 docs/
 *.md
 !README.md
-!SECURITY_REMEDIATION_PLAN.md
 !SECURITY_REMEDIATION_SUMMARY.md
 
 # Logs

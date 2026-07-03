@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   Clock,
@@ -76,6 +76,8 @@ function StatTile({ icon: Icon, label, value }) {
 
 export default function DriverTracking() {
   const { manifestId = '' } = useParams();
+  const [searchParams] = useSearchParams();
+  const trackingToken = searchParams.get('token') || '';
   const [tracking, setTracking] = useState(false);
   const [permissionError, setPermissionError] = useState('');
   const [currentPosition, setCurrentPosition] = useState(null);
@@ -148,7 +150,7 @@ export default function DriverTracking() {
         speed: position.speed,
         heading: position.heading,
         source: 'driver_geolocation',
-      });
+      }, trackingToken);
       setLastSentAt(new Date().toISOString());
     } catch (error) {
       if (error?.code === 'NETWORK_ERROR') {
@@ -160,7 +162,7 @@ export default function DriverTracking() {
       sendInFlightRef.current = false;
       setIsSending(false);
     }
-  }, [manifestId]);
+  }, [manifestId, trackingToken]);
 
   const handleGeoError = useCallback((error) => {
     if (error?.code === error?.PERMISSION_DENIED) {
@@ -350,3 +352,4 @@ export default function DriverTracking() {
     </div>
   );
 }
+

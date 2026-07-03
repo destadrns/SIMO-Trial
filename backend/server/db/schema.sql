@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS qc_checklists (
 CREATE TABLE IF NOT EXISTS logistics_manifests (
   id TEXT PRIMARY KEY,
   manifest_number TEXT NOT NULL UNIQUE,
+  tracking_token TEXT UNIQUE,
   project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
   driver_name TEXT NOT NULL,
   driver_phone TEXT NOT NULL DEFAULT '',

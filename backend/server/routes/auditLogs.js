@@ -7,7 +7,7 @@ import { serializeAuditLog } from '../utils/serializers.js';
 export function createAuditLogsRouter(db) {
   const router = Router();
 
-  router.use(requireAuth, requireRoles('Admin', 'Owner', 'Production Manager'));
+  router.use(requireAuth, requireRoles('Admin', 'Owner', 'Production Manager', 'Super Admin'));
 
   router.get('/', asyncHandler(async (req, res) => {
     const conditions = [];

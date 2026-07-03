@@ -1,4 +1,4 @@
-export const useBackendApi =
+﻿export const useBackendApi =
   String(import.meta.env.VITE_USE_BACKEND_API || 'true').toLowerCase() === 'true';
 
 const TOKEN_KEY = 'simo-mugi-jaya-token';
@@ -54,4 +54,32 @@ export async function apiRequest(path, options = {}) {
   }
 
   return payload;
+}
+
+export function inviteUser(payload) {
+  return apiRequest('/admin/users/invite', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function acceptInvite(payload) {
+  return apiRequest('/auth/invite/accept', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function requestPasswordReset(email) {
+  return apiRequest('/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(payload) {
+  return apiRequest('/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }

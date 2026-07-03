@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+﻿import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -8,6 +8,7 @@ import {
   FileText,
   Search,
   User,
+  UserPlus,
   RefreshCw,
   LogOut,
   Database,
@@ -24,6 +25,10 @@ const AuditLogs = lazy(() => import('./pages/AuditLogs'));
 const Warehouses = lazy(() => import('./pages/Warehouses'));
 const QualityControl = lazy(() => import('./pages/QualityControl'));
 const MasterData = lazy(() => import('./pages/MasterData'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const InviteAccept = lazy(() => import('./pages/InviteAccept'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 const SidebarItem = ({ icon: Icon, label, path }) => (
   <NavLink
@@ -142,6 +147,9 @@ const Layout = ({ children }) => {
           {permissions.canViewAudit && (
             <SidebarItem icon={FileText} label="Audit Logs" path="/audit" />
           )}
+          {permissions.canManageAccounts && (
+            <SidebarItem icon={UserPlus} label="Accounts" path="/accounts" />
+          )}
         </nav>
       </aside>
 
@@ -213,6 +221,12 @@ function ProtectedAppRoutes() {
             permissions.canSubmitQc ? <QualityControl /> : <Navigate to="/" replace />
           }
         />
+        <Route
+          path="/accounts"
+          element={
+            permissions.canManageAccounts ? <UserManagement /> : <Navigate to="/" replace />
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
@@ -228,6 +242,9 @@ function AppRoutes() {
       <Suspense fallback={<div className="min-h-screen bg-slate-100 p-6 text-sm font-semibold text-slate-500">Loading page...</div>}>
         <Routes>
           <Route path="/driver/tracking/:manifestId" element={<DriverTracking />} />
+          <Route path="/accept-invite" element={<InviteAccept />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route
             path="/login"
             element={useApi && token ? <Navigate to="/" replace /> : <Login />}

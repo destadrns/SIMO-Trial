@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { get } from './db/database.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createAdminUsersRouter } from './routes/adminUsers.js';
 import { createAuditLogsRouter } from './routes/auditLogs.js';
 import { createLogisticsRouter } from './routes/logistics.js';
 import { createProjectsRouter } from './routes/projects.js';
@@ -54,6 +55,7 @@ export function createApp({ db }) {
   }));
 
   app.use('/api/auth', createAuthRouter(db));
+  app.use('/api/admin/users', createAdminUsersRouter(db));
   app.use('/api/roles', createRolesRouter(db));
   app.use('/api/users', createUsersRouter(db));
   app.use('/api/projects/:projectId/warehouses', createProjectWarehousesRouter(db));

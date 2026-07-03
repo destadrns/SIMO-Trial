@@ -175,13 +175,19 @@ export async function openDatabase(databasePath = process.env.DATABASE_URL) {
 export async function initializeDatabase(db, dropTables = false) {
   const schema = await fs.readFile(SCHEMA_PATH, 'utf8');
   if (dropTables) {
-    const tables = ['audit_logs', 'logistics_locations', 'delivery_checkins', 'logistics_manifests', 'qc_checklists', 'work_items', 'warehouses', 'projects', 'users', 'roles'];
+    const tables = ['email_outbox', 'password_reset_tokens', 'account_invites', 'audit_logs', 'logistics_locations', 'delivery_checkins', 'logistics_manifests', 'qc_checklists', 'work_items', 'warehouses', 'projects', 'users', 'roles'];
     for (const table of tables) {
       await exec(db, `DROP TABLE IF EXISTS ${table} CASCADE`);
     }
   }
   await exec(db, schema);
   await exec(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''");
+  await exec(db, "ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'ACTIVE'");
+  await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_by TEXT REFERENCES users(id) ON DELETE SET NULL');
+  await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_at TEXT');
+  await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS activated_at TEXT');
+  await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TEXT');
+  await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at TEXT');
   await exec(db, 'ALTER TABLE logistics_manifests ADD COLUMN IF NOT EXISTS tracking_token TEXT UNIQUE');
   return db;
 }

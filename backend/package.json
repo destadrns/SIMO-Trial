@@ -8,6 +8,7 @@
     "start": "node --env-file-if-exists=.env server/index.js",
     "test": "node --env-file-if-exists=.env --test server/tests/api.test.js",
     "test:server": "node --env-file-if-exists=.env --test server/tests/api.test.js",
+    "db:migrate": "node --env-file-if-exists=.env server/db/migrate.js",
     "db:seed": "node --env-file-if-exists=.env server/seed/seedDatabase.js"
   },
   "dependencies": {

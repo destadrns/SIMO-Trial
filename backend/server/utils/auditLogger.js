@@ -16,7 +16,7 @@ export async function resolveActor(db, userId) {
     `SELECT u.id, u.name, r.name AS role_name
      FROM users u
      JOIN roles r ON r.id = u.role_id
-     WHERE u.id = ? AND u.is_active = 1`,
+     WHERE u.id = ? AND u.is_active = 1 AND u.account_status = 'ACTIVE'`,
     [userId],
   );
 

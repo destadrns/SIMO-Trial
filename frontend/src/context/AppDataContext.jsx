@@ -270,6 +270,12 @@ export function AppDataProvider({ children }) {
     setToken(null);
   }, []);
 
+  useEffect(() => {
+    const handleTokenCleared = () => setToken(null);
+    window.addEventListener('simo-auth-token-cleared', handleTokenCleared);
+    return () => window.removeEventListener('simo-auth-token-cleared', handleTokenCleared);
+  }, []);
+
   const updateWorkItemStatus = useCallback(
     async (workItemId, nextStatus) => {
       if (useBackendApi && !isOffline && token) {
@@ -436,6 +442,7 @@ export function AppDataProvider({ children }) {
       token,
       login,
       logout,
+      fetchData,
     }),
     [
       data,
@@ -454,6 +461,7 @@ export function AppDataProvider({ children }) {
       token,
       login,
       logout,
+      fetchData,
     ],
   );
 

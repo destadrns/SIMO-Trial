@@ -8,6 +8,7 @@ import { getJwtSecret } from '../utils/auth.js';
 import { getAppBaseUrl, sendPasswordResetEmail } from '../utils/email.js';
 import { asyncHandler, HttpError, sendData } from '../utils/http.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
+import { rateLimit } from '../utils/rateLimit.js';
 import { serializeUser } from '../utils/serializers.js';
 
 function signUserToken(user) {
@@ -57,8 +58,10 @@ async function findValidReset(db, token) {
 
 export function createAuthRouter(db) {
   const router = Router();
+  const loginLimiter = rateLimit({ key: 'auth-login', windowMs: 15 * 60 * 1000, max: 60 });
+  const tokenLimiter = rateLimit({ key: 'auth-token', windowMs: 15 * 60 * 1000, max: 30 });
 
-  router.post('/login', asyncHandler(async (req, res) => {
+  router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
     const { email, password } = req.body || {};
     const normalizedEmail = String(email || '').trim().toLowerCase();
 
@@ -107,7 +110,7 @@ export function createAuthRouter(db) {
     sendData(res, { token: signUserToken(user), user: serializeUser(user) });
   }));
 
-  router.get('/invite/verify', asyncHandler(async (req, res) => {
+  router.get('/invite/verify', tokenLimiter, asyncHandler(async (req, res) => {
     const invite = req.query.token ? await findValidInvite(db, req.query.token) : null;
     if (!invite) {
       throw new HttpError(400, 'INVALID_OR_EXPIRED_TOKEN', 'Token undangan tidak valid atau kedaluwarsa.');
@@ -120,7 +123,7 @@ export function createAuthRouter(db) {
     });
   }));
 
-  router.post(['/invite/accept', '/invites/accept'], asyncHandler(async (req, res) => {
+  router.post(['/invite/accept', '/invites/accept'], tokenLimiter, asyncHandler(async (req, res) => {
     const { token, password, confirmPassword } = req.body || {};
     if (!token) throw new HttpError(400, 'VALIDATION_ERROR', 'Token wajib diisi.');
     assertPassword(password, confirmPassword ?? password);
@@ -169,7 +172,7 @@ export function createAuthRouter(db) {
     const user = await get(db, `SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?`, [invite.user_id]);
     sendData(res, { user: serializeUser(user) });
   }));
-  router.post('/password/forgot', asyncHandler(async (req, res) => {
+  router.post('/password/forgot', tokenLimiter, asyncHandler(async (req, res) => {
     const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
     const reset = createAccountToken('reset');
     const expiresAt = hoursFromNow(0.5);
@@ -205,7 +208,7 @@ export function createAuthRouter(db) {
     });
   }));
 
-  router.get('/password/reset/verify', asyncHandler(async (req, res) => {
+  router.get('/password/reset/verify', tokenLimiter, asyncHandler(async (req, res) => {
     const reset = req.query.token ? await findValidReset(db, req.query.token) : null;
     if (!reset) {
       throw new HttpError(400, 'INVALID_OR_EXPIRED_TOKEN', 'Token reset tidak valid atau kedaluwarsa.');
@@ -213,7 +216,7 @@ export function createAuthRouter(db) {
     sendData(res, { email: reset.email, resetStatus: 'VALID' });
   }));
 
-  router.post('/password/reset', asyncHandler(async (req, res) => {
+  router.post('/password/reset', tokenLimiter, asyncHandler(async (req, res) => {
     const { token, password, confirmPassword } = req.body || {};
     if (!token) throw new HttpError(400, 'VALIDATION_ERROR', 'Token wajib diisi.');
     assertPassword(password, confirmPassword ?? password);

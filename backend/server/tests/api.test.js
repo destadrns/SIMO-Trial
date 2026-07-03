@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { createApp } from '../app.js';
-import { closeDatabase, createDatabase, get } from '../db/database.js';
+import { closeDatabase, createDatabase, get, run } from '../db/database.js';
 import { seedDatabase } from '../seed/seedDatabase.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 
@@ -632,7 +632,7 @@ test('account lifecycle schema is initialized', async () => {
 test('super admin invite activates account with one-time token', async () => {
   await loginAs('super.admin@simo.test');
 
-  const invite = await request('/api/users/invites', {
+  const invite = await request('/api/admin/users/invite', {
     method: 'POST',
     body: JSON.stringify({
       name: 'Invite Test User',
@@ -715,6 +715,49 @@ test('forgot password uses generic response and one-time reset token', async () 
   const newLogin = await request('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email: 'dewi.lestari@simo.test', password: 'Changed123' }),
+  });
+  assert.equal(newLogin.response.status, 200);
+});
+
+test('active auth checks reject disabled users and password-reset tokens', async () => {
+  const foremanLogin = await loginAs('joko.anwar@simo.test');
+  assert.equal(foremanLogin.response.status, 200);
+
+  await run(db, "UPDATE users SET is_active = 0, account_status = 'DISABLED', disabled_at = CURRENT_TIMESTAMP WHERE id = ?", ['usr-foreman']);
+  const disabledTokenUse = await request('/api/work-items/wi-002/status', {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'Done' }),
+  });
+  assert.equal(disabledTokenUse.response.status, 401);
+  assert.equal(disabledTokenUse.body.error.code, 'INVALID_TOKEN');
+
+  await run(db, "UPDATE users SET is_active = 1, account_status = 'ACTIVE', disabled_at = NULL WHERE id = ?", ['usr-foreman']);
+
+  const qcLogin = await loginAs('siti.nurhaliza@simo.test');
+  assert.equal(qcLogin.response.status, 200);
+  const oldToken = currentToken;
+
+  currentToken = null;
+  const forgot = await request('/api/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'siti.nurhaliza@simo.test' }),
+  });
+  assert.equal(forgot.response.status, 200);
+  const reset = await request('/api/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token: forgot.body.data.delivery.resetToken, password: 'ChangedQc123' }),
+  });
+  assert.equal(reset.response.status, 200);
+
+  currentToken = oldToken;
+  const revokedTokenUse = await request('/api/qc-checklists');
+  assert.equal(revokedTokenUse.response.status, 401);
+  assert.equal(revokedTokenUse.body.error.code, 'TOKEN_REVOKED');
+
+  currentToken = null;
+  const newLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'siti.nurhaliza@simo.test', password: 'ChangedQc123' }),
   });
   assert.equal(newLogin.response.status, 200);
 });

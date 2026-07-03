@@ -25,6 +25,8 @@ docs/
 *.md
 !README.md
 !SECURITY_REMEDIATION_SUMMARY.md
+!REPORT/
+!REPORT/*.md
 
 # Logs
 logs

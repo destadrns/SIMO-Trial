@@ -324,7 +324,13 @@ CREATE DATABASE simo_system_test;
 ```
 
 3. Set `DATABASE_URL` dan `DATABASE_URL_TEST` di `backend/.env`.
-4. Jalankan seed demo:
+4. Jalankan migration baseline:
+
+```bash
+npm run db:migrate
+```
+
+5. Jalankan seed demo:
 
 ```bash
 npm run db:seed
@@ -433,6 +439,7 @@ npm run build:frontend
 npm run lint:frontend
 npm run test:frontend
 npm run test:backend
+npm run db:migrate
 npm run db:seed
 ```
 
@@ -465,7 +472,7 @@ git check-ignore -v backend/.env frontend/.env
 - ETA calculation belum tersedia.
 - Route deviation alert belum tersedia.
 - User management UI belum lengkap.
-- Migration system formal belum ditambahkan.
+- Migration baseline sudah tersedia melalui `npm run db:migrate`; migration lanjutan dapat ditambahkan sebagai file SQL di `backend/server/db/migrations`.
 - Evidence file disajikan lewat route authenticated; production bisa memakai object storage private.
 - Driver tracking link berisi token per manifest dan bisa di-regenerate dari halaman Logistics.
 - JWT masih disimpan di `localStorage` untuk demo, bukan cookie HttpOnly production.
@@ -479,7 +486,7 @@ git check-ignore -v backend/.env frontend/.env
 
 - Hardening auth/session.
 - Better error boundary.
-- Database migration system.
+- More database migrations and rollback procedure.
 - More automated tests.
 
 ### Phase 2 — Logistics Pro
@@ -517,7 +524,7 @@ Untuk production live client, lanjutkan hardening pada:
 - Security
 - Deployment
 - Backup strategy
-- Migration
+- Migration rollback strategy
 - Monitoring
 - Full QA regression
 
@@ -576,4 +583,4 @@ POST   /api/auth/password/reset
 
 - JWT masih disimpan di `localStorage` untuk demo; production sebaiknya pindah ke HttpOnly Secure SameSite cookie.
 - SMTP asli belum diaktifkan; fallback development tidak boleh dipakai production.
-- Migration system formal belum ada; schema masih additive lewat startup guard.
+- Migration baseline sudah ada; rollback strategy dan migration lanjutan masih perlu dibuat saat schema bertambah.

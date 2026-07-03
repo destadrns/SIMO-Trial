@@ -2,6 +2,10 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { acceptInvite } from '../services/apiClient';
 
+function isStrongEnoughPassword(password) {
+  return password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
+}
+
 export default function InviteAccept() {
   const [params] = useSearchParams();
   const [token, setToken] = useState(params.get('token') || '');
@@ -14,6 +18,10 @@ export default function InviteAccept() {
     event.preventDefault();
     setError('');
     setMessage('');
+    if (!isStrongEnoughPassword(password)) {
+      setError('Password minimal 8 karakter dan wajib berisi huruf serta angka.');
+      return;
+    }
     setIsLoading(true);
     try {
       await acceptInvite({ token, password });
@@ -30,12 +38,12 @@ export default function InviteAccept() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 font-sans">
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
         <h1 className="text-2xl font-black text-slate-900">Aktivasi Akun</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Masukkan token undangan dan buat password minimal 8 karakter.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">Masukkan token undangan dan buat password minimal 8 karakter, berisi huruf dan angka.</p>
         {error && <p className="mt-4 rounded-lg bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</p>}
         {message && <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">{message}</p>}
         <form onSubmit={submit} className="mt-6 space-y-4">
           <input value={token} onChange={(event) => setToken(event.target.value)} required className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold" placeholder="invite_token" />
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold" placeholder="Password baru" />
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} pattern="(?=.*[A-Za-z])(?=.*\\d).{8,}" className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold" placeholder="Password baru" />
           <button disabled={isLoading} className="w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-60">
             {isLoading ? 'Memproses...' : 'Aktifkan Akun'}
           </button>

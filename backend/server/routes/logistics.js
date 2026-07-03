@@ -46,7 +46,7 @@ function optionalAuth(req, res, next) {
     return;
   }
 
-  return requireAuth(req, res, next);
+  requireAuth(req, res, next);
 }
 
 

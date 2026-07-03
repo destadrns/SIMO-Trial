@@ -17,8 +17,6 @@ const statusHelp = {
 };
 
 const TOKEN_KEY = 'simo-mugi-jaya-token';
-const MAX_EVIDENCE_FILE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_EVIDENCE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const apiHostUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api')
   .replace(/\/$/, '')
   .replace(/\/api$/, '');
@@ -139,32 +137,6 @@ export default function QualityControl() {
 
   const handleChange = (field, value) => {
     setForm((currentForm) => ({ ...currentForm, [field]: value }));
-  };
-
-  const handleEvidenceChange = (event) => {
-    const nextFile = event.target.files[0] || null;
-    setError('');
-
-    if (!nextFile) {
-      setFile(null);
-      return;
-    }
-
-    if (!ALLOWED_EVIDENCE_TYPES.has(nextFile.type)) {
-      setFile(null);
-      event.target.value = '';
-      setError('Evidence harus berupa JPG, PNG, atau WEBP.');
-      return;
-    }
-
-    if (nextFile.size > MAX_EVIDENCE_FILE_SIZE) {
-      setFile(null);
-      event.target.value = '';
-      setError('Evidence maksimal 5 MB.');
-      return;
-    }
-
-    setFile(nextFile);
   };
 
   const handleSubmit = async (event) => {
@@ -375,8 +347,8 @@ export default function QualityControl() {
                 <input
                   id="qc-evidence"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleEvidenceChange}
+                  accept="image/*"
+                  onChange={(event) => setFile(event.target.files[0] || null)}
                   className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
                 />
                 <p className="mt-2 text-xs font-medium text-slate-500">

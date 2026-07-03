@@ -44,7 +44,6 @@ export async function apiRequest(path, options = {}) {
   if (!response.ok) {
     if (response.status === 401) {
       window.localStorage.removeItem(TOKEN_KEY);
-      window.dispatchEvent(new CustomEvent('simo-auth-token-cleared'));
     }
 
     const error = new Error(payload?.error?.message || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
@@ -61,30 +60,6 @@ export function inviteUser(payload) {
   return apiRequest('/admin/users/invite', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
-}
-
-export function getAdminUsers() {
-  return apiRequest('/admin/users');
-}
-
-export function resendInvite(userId) {
-  return apiRequest(`/admin/users/${encodeURIComponent(userId)}/resend-invite`, {
-    method: 'POST',
-  });
-}
-
-export function changeUserRole(userId, roleId) {
-  return apiRequest(`/admin/users/${encodeURIComponent(userId)}/role`, {
-    method: 'PATCH',
-    body: JSON.stringify({ roleId }),
-  });
-}
-
-export function changeUserStatus(userId, status) {
-  return apiRequest(`/admin/users/${encodeURIComponent(userId)}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
   });
 }
 

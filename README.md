@@ -287,12 +287,12 @@ Contoh isi:
 PORT=3001
 DATABASE_URL=postgresql://postgres:password@127.0.0.1:5432/simo_system
 DATABASE_URL_TEST=postgresql://postgres:password@127.0.0.1:5432/simo_system_test
-JWT_SECRET=change_this_secret
+JWT_SECRET=replace_with_long_random_secret
 CORS_ORIGIN=http://localhost:5173
 UPLOAD_DIR=server/public/uploads
 ```
 
-> Jangan commit file `.env` asli.
+> Jangan commit file `.env` asli. `DATABASE_URL`, `DATABASE_URL_TEST`, dan `JWT_SECRET` wajib diset; backend tidak memakai fallback credential atau fallback JWT secret.
 
 ---
 
@@ -366,7 +366,7 @@ Uploads        http://localhost:3001/uploads/<filename>
 
 ## Demo Login Accounts
 
-Semua seeded user memakai password:
+Semua seeded user memakai password demo berikut. Backend menyimpan dan memverifikasi password sebagai hash `scrypt`, bukan plaintext:
 
 ```text
 password

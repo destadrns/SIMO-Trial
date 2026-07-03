@@ -1,4 +1,4 @@
-﻿import cors from 'cors';
+import cors from 'cors';
 import path from 'node:path';
 import express from 'express';
 import { get } from './db/database.js';
@@ -17,9 +17,12 @@ import {
   createWarehouseWorkItemsRouter,
   createWorkItemsRouter,
 } from './routes/workItems.js';
+import { getJwtSecret } from './utils/auth.js';
 import { asyncHandler, HttpError, sendData } from './utils/http.js';
 
 export function createApp({ db }) {
+  getJwtSecret();
+
   const app = express();
 
   app.disable('x-powered-by');
@@ -119,4 +122,3 @@ export function createApp({ db }) {
 
   return app;
 }
-

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createInitialDemoState } from '../data/seedData';
 import { AppDataContext } from './AppDataCore';
 
@@ -186,7 +186,13 @@ export function AppDataProvider({ children }) {
 
     setIsLoading(true);
     try {
+      const requestToken = customToken || token;
+      const requestUser = requestToken ? decodeJwt(requestToken) : null;
+      const roleId = requestUser?.roleId;
       const headers = customToken ? { Authorization: `Bearer ${customToken}` } : {};
+      const canReadUsers = ['admin', 'owner'].includes(roleId);
+      const canReadAuditLogs = ['admin', 'owner', 'production-manager'].includes(roleId);
+      const canReadQcChecklists = ['admin', 'owner', 'production-manager', 'qc-inspector'].includes(roleId);
       const [
         rolesRes,
         usersRes,
@@ -197,23 +203,23 @@ export function AppDataProvider({ children }) {
         auditLogsRes
       ] = await Promise.all([
         apiRequest('/roles', { headers }),
-        apiRequest('/users', { headers }),
+        canReadUsers ? apiRequest('/users', { headers }) : Promise.resolve(null),
         apiRequest('/projects', { headers }),
         apiRequest('/warehouses', { headers }),
         getWorkItems(),
-        getQcChecklists(),
-        getAuditLogs()
+        canReadQcChecklists ? getQcChecklists() : Promise.resolve(null),
+        canReadAuditLogs ? getAuditLogs() : Promise.resolve(null)
       ]);
 
-      setData({
+      setData((current) => ({
         roles: rolesRes.data,
-        users: usersRes.data,
+        users: usersRes?.data || current.users,
         projects: projectsRes.data,
         warehouses: warehousesRes.data,
         workItems: workItemsRes.data,
-        qcChecklists: qcChecklistsRes.data,
-        auditLogs: auditLogsRes.data,
-      });
+        qcChecklists: qcChecklistsRes?.data || current.qcChecklists,
+        auditLogs: auditLogsRes?.data || current.auditLogs,
+      }));
       setIsOffline(false);
     } catch (err) {
       console.error("API error, falling back to localStorage:", err);

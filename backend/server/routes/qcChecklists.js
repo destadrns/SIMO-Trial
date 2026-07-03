@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { Router } from 'express';
 import multer from 'multer';
 import { all, get, run, withTransaction } from '../db/database.js';
-import { requireAuth } from '../utils/auth.js';
+import { requireAuth, requireRoles } from '../utils/auth.js';
 import { resolveActor, writeAuditLog } from '../utils/auditLogger.js';
 import {
   asyncHandler,
@@ -18,6 +18,7 @@ import { serializeQcChecklist } from '../utils/serializers.js';
 
 const QC_STATUS_OPTIONS = ['Pending', 'Passed QC', 'Rework'];
 const QC_SUBMISSION_ROLES = ['QC Inspector', 'Admin'];
+const QC_READ_ROLES = ['Admin', 'Owner', 'Production Manager', 'QC Inspector'];
 
 const uploadDir = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'server/public/uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -88,12 +89,12 @@ function handleEvidenceUpload(req, res, next) {
 export function createQcChecklistsRouter(db) {
   const router = Router();
 
-  router.get('/', asyncHandler(async (req, res) => {
+  router.get('/', requireAuth, requireRoles(...QC_READ_ROLES), asyncHandler(async (req, res) => {
     const rows = await all(db, 'SELECT * FROM qc_checklists ORDER BY created_at DESC, id DESC');
     sendData(res, rows.map(serializeQcChecklist), { meta: { count: rows.length } });
   }));
 
-  router.get('/:id', asyncHandler(async (req, res) => {
+  router.get('/:id', requireAuth, requireRoles(...QC_READ_ROLES), asyncHandler(async (req, res) => {
     const row = requireRecord(
       await get(db, 'SELECT * FROM qc_checklists WHERE id = ?', [req.params.id]),
       'QC checklist',

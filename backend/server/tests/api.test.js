@@ -1,8 +1,11 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { createApp } from '../app.js';
 import { closeDatabase, createDatabase, get } from '../db/database.js';
 import { seedDatabase } from '../seed/seedDatabase.js';
+import { hashPassword, verifyPassword } from '../utils/password.js';
+
+process.env.JWT_SECRET ||= 'test-only-jwt-secret';
 
 let db;
 let server;
@@ -28,6 +31,25 @@ async function request(path, options = {}) {
   return { response, body };
 }
 
+async function loginAs(email, password = 'password') {
+  const loginRes = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+
+  currentToken = loginRes.body.data.token;
+  return loginRes;
+}
+
+
+test('password hashes verify only matching passwords', () => {
+  const hash = hashPassword('password', 'test-salt');
+
+  assert.equal(verifyPassword('password', hash), true);
+  assert.equal(verifyPassword('wrong-password', hash), false);
+  assert.equal(verifyPassword('password', 'password'), false);
+});
+
 before(async () => {
   db = await createDatabase(':memory:');
   await seedDatabase({ db });
@@ -37,10 +59,15 @@ before(async () => {
 });
 
 after(async () => {
-  await new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
-  await closeDatabase(db);
+  if (server) {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+
+  if (db) {
+    await closeDatabase(db);
+  }
 });
 
 beforeEach(() => {
@@ -51,15 +78,19 @@ test('health and collection endpoints return data envelopes', async () => {
   const paths = [
     '/api/health',
     '/api/roles',
-    '/api/users',
     '/api/projects',
     '/api/warehouses',
     '/api/work-items',
-    '/api/qc-checklists',
-    '/api/audit-logs',
   ];
 
   for (const path of paths) {
+    const { response, body } = await request(path);
+    assert.equal(response.status, 200, path);
+    assert.ok('data' in body, path);
+  }
+
+  await loginAs('dewi.lestari@simo.test');
+  for (const path of ['/api/users', '/api/audit-logs', '/api/qc-checklists']) {
     const { response, body } = await request(path);
     assert.equal(response.status, 200, path);
     assert.ok('data' in body, path);
@@ -68,11 +99,9 @@ test('health and collection endpoints return data envelopes', async () => {
 
 test('detail and nested endpoints return expected records', async () => {
   const details = [
-    ['/api/users/usr-owner', 'usr-owner'],
     ['/api/projects/prj-ikn-a', 'prj-ikn-a'],
     ['/api/warehouses/wh-frame', 'wh-frame'],
     ['/api/work-items/wi-001', 'wi-001'],
-    ['/api/qc-checklists/qc-001', 'qc-001'],
   ];
 
   for (const [path, expectedId] of details) {
@@ -80,6 +109,15 @@ test('detail and nested endpoints return expected records', async () => {
     assert.equal(response.status, 200, path);
     assert.equal(body.data.id, expectedId);
   }
+
+  await loginAs('dewi.lestari@simo.test');
+  const userDetail = await request('/api/users/usr-owner');
+  assert.equal(userDetail.response.status, 200);
+  assert.equal(userDetail.body.data.id, 'usr-owner');
+  const qcDetail = await request('/api/qc-checklists/qc-001');
+  assert.equal(qcDetail.response.status, 200);
+  assert.equal(qcDetail.body.data.id, 'qc-001');
+  currentToken = null;
 
   const projectWarehouses = await request('/api/projects/prj-ikn-a/warehouses');
   assert.equal(projectWarehouses.response.status, 200);
@@ -91,10 +129,12 @@ test('detail and nested endpoints return expected records', async () => {
 });
 
 test('audit logs support module and user filters', async () => {
+  await loginAs('dewi.lestari@simo.test');
   const { response, body } = await request('/api/audit-logs?module=Production&userId=usr-pm');
   assert.equal(response.status, 200);
   assert.ok(body.data.length > 0);
   assert.ok(body.data.every((log) => log.module === 'Production' && log.userId === 'usr-pm'));
+  currentToken = null;
 });
 
 test('work item status mutation creates one audit and no-op creates none', async () => {
@@ -148,6 +188,12 @@ test('unauthorized or invalid token requests return 401 errors', async () => {
   });
   assert.equal(invalidToken.response.status, 401);
   assert.equal(invalidToken.body.error.code, 'INVALID_TOKEN');
+
+  for (const path of ['/api/users', '/api/audit-logs', '/api/qc-checklists']) {
+    const protectedRead = await request(path);
+    assert.equal(protectedRead.response.status, 401, path);
+    assert.equal(protectedRead.body.error.code, 'UNAUTHORIZED', path);
+  }
 });
 
 test('role-specific mutation endpoints reject unauthorized roles', async () => {
@@ -188,6 +234,12 @@ test('role-specific mutation endpoints reject unauthorized roles', async () => {
   const foremanLogistics = await request('/api/logistics/manifests');
   assert.equal(foremanLogistics.response.status, 403);
   assert.equal(foremanLogistics.body.error.code, 'FORBIDDEN');
+
+  for (const path of ['/api/users', '/api/audit-logs', '/api/qc-checklists']) {
+    const protectedRead = await request(path);
+    assert.equal(protectedRead.response.status, 403, path);
+    assert.equal(protectedRead.body.error.code, 'FORBIDDEN', path);
+  }
 
   currentToken = null;
 });
@@ -427,4 +479,3 @@ test('seed command remains idempotent', async () => {
     assert.equal(afterCount, beforeCounts[table], table);
   }
 });
-

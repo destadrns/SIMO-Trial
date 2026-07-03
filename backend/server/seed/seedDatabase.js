@@ -1,6 +1,7 @@
-﻿import { pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { seedData } from './seedData.js';
 import { closeDatabase, createDatabase, run, withTransaction } from '../db/database.js';
+import { hashPassword } from '../utils/password.js';
 
 const roleDescriptions = {
   owner: 'Business owner with operational visibility.',
@@ -122,12 +123,18 @@ export async function seedDatabase({ databasePath, db: providedDb } = {}) {
       }
 
       for (const user of seedData.users) {
+        const passwordHash = hashPassword('password', `demo-${user.id}`);
         await run(
           db,
           `INSERT OR IGNORE INTO users
-            (id, name, email, role_id, site, is_active, created_at)
-           VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)`,
-          [user.id, user.name, userEmails[user.id], user.roleId, user.site],
+            (id, name, email, password_hash, role_id, site, is_active, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)`,
+          [user.id, user.name, userEmails[user.id], passwordHash, user.roleId, user.site],
+        );
+        await run(
+          db,
+          "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ''",
+          [passwordHash, user.id],
         );
       }
 

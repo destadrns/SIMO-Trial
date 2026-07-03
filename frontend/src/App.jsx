@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -15,14 +16,14 @@ import { AppDataProvider } from './context/AppDataContext';
 import { useAppData } from './context/AppDataCore';
 import { useBackendApi } from './services/apiClient';
 import { StatusBadge } from './components/ui';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Logistics from './pages/Logistics';
-import DriverTracking from './pages/DriverTracking';
-import AuditLogs from './pages/AuditLogs';
-import Warehouses from './pages/Warehouses';
-import QualityControl from './pages/QualityControl';
-import MasterData from './pages/MasterData';
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Logistics = lazy(() => import('./pages/Logistics'));
+const DriverTracking = lazy(() => import('./pages/DriverTracking'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const Warehouses = lazy(() => import('./pages/Warehouses'));
+const QualityControl = lazy(() => import('./pages/QualityControl'));
+const MasterData = lazy(() => import('./pages/MasterData'));
 
 const SidebarItem = ({ icon: Icon, label, path }) => (
   <NavLink
@@ -166,7 +167,9 @@ const Layout = ({ children }) => {
         </header>
 
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl space-y-6">{children}</div>
+          <Suspense fallback={<div className="rounded-xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500 shadow-sm">Loading page...</div>}>
+            <div className="mx-auto max-w-7xl space-y-6">{children}</div>
+          </Suspense>
         </main>
       </div>
     </div>
@@ -222,19 +225,21 @@ function AppRoutes() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/driver/tracking/:manifestId" element={<DriverTracking />} />
-        <Route
-          path="/login"
-          element={useApi && token ? <Navigate to="/" replace /> : <Login />}
-        />
-        <Route
-          path="/*"
-          element={
-            useApi && !token ? <Navigate to="/login" replace /> : <ProtectedAppRoutes />
-          }
-        />
-      </Routes>
+      <Suspense fallback={<div className="min-h-screen bg-slate-100 p-6 text-sm font-semibold text-slate-500">Loading page...</div>}>
+        <Routes>
+          <Route path="/driver/tracking/:manifestId" element={<DriverTracking />} />
+          <Route
+            path="/login"
+            element={useApi && token ? <Navigate to="/" replace /> : <Login />}
+          />
+          <Route
+            path="/*"
+            element={
+              useApi && !token ? <Navigate to="/login" replace /> : <ProtectedAppRoutes />
+            }
+          />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

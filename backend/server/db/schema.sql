@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL DEFAULT '',
   role_id TEXT NOT NULL REFERENCES roles(id),
   site TEXT NOT NULL DEFAULT '',
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),

@@ -1,7 +1,15 @@
-﻿import jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { HttpError } from './http.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'simo-mugi-jaya-secret-key';
+export function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+
+  if (!secret) {
+    throw new Error('JWT_SECRET is required. Create backend/.env from backend/.env.example and set a strong secret.');
+  }
+
+  return secret;
+}
 
 export function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -11,7 +19,7 @@ export function requireAuth(req, res, next) {
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     req.user = decoded;
     next();
   } catch {
@@ -19,3 +27,14 @@ export function requireAuth(req, res, next) {
   }
 }
 
+export function requireRoles(...allowedRoles) {
+  return (req, res, next) => {
+    void res;
+
+    if (!allowedRoles.includes(req.user?.roleName)) {
+      throw new HttpError(403, 'FORBIDDEN', 'Akses tidak tersedia untuk role pengguna ini.');
+    }
+
+    next();
+  };
+}

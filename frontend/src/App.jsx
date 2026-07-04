@@ -1,5 +1,5 @@
-﻿import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
+﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Box,
@@ -17,6 +17,7 @@ import {
 import { AppDataProvider } from './context/AppDataContext';
 import { useAppData } from './context/AppDataCore';
 import { useBackendApi } from './services/apiClient';
+import { getLogisticsManifests } from './services/logisticsApi';
 import { StatusBadge } from './components/ui';
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -52,6 +53,131 @@ const SidebarItem = ({ icon: Icon, label, path }) => (
     )}
   </NavLink>
 );
+
+
+function resultMatches(values, query) {
+  return values.some((value) => String(value || '').toLowerCase().includes(query));
+}
+
+const GlobalSearch = () => {
+  const { data, users, permissions } = useAppData();
+  const navigate = useNavigate();
+  const rootRef = useRef(null);
+  const [term, setTerm] = useState('');
+  const [debouncedTerm, setDebouncedTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [manifests, setManifests] = useState([]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedTerm(term.trim().toLowerCase()), 300);
+    return () => window.clearTimeout(timer);
+  }, [term]);
+
+  useEffect(() => {
+    if (!permissions.canAccessLogistics) return;
+    let active = true;
+    getLogisticsManifests()
+      .then((response) => { if (active) setManifests(response.data || []); })
+      .catch(() => { if (active) setManifests([]); });
+    return () => { active = false; };
+  }, [permissions.canAccessLogistics]);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, []);
+
+  const groups = useMemo(() => {
+    const query = debouncedTerm;
+    if (!query) return [];
+    const limit = (items) => items.slice(0, 4);
+    const nextGroups = [
+      {
+        label: 'Projects',
+        items: limit(data.projects.filter((project) => resultMatches([project.code, project.name, project.clientName, project.client, project.location, project.status], query)).map((project) => ({ id: `project-${project.id}`, title: `${project.code} - ${project.name}`, subtitle: project.clientName || project.client || project.location, path: '/master-data' }))),
+      },
+      {
+        label: 'Warehouses',
+        items: limit(data.warehouses.filter((warehouse) => resultMatches([warehouse.code, warehouse.name, warehouse.location, warehouse.category, warehouse.status], query)).map((warehouse) => ({ id: `warehouse-${warehouse.id}`, title: `${warehouse.code} - ${warehouse.name}`, subtitle: warehouse.location || warehouse.category, path: '/master-data' }))),
+      },
+      {
+        label: 'Work Items',
+        items: permissions.canUpdateProduction ? limit(data.workItems.filter((item) => resultMatches([item.materialName, item.taskName, item.status, item.qcStatus], query)).map((item) => ({ id: `work-${item.id}`, title: item.materialName, subtitle: `${item.taskName} - ${item.status}`, path: '/warehouses' }))) : [],
+      },
+      {
+        label: 'QC Checklists',
+        items: permissions.canSubmitQc ? limit(data.qcChecklists.filter((record) => resultMatches([record.materialName, record.qcStatus, record.createdBy, record.notes], query)).map((record) => ({ id: `qc-${record.id}`, title: record.materialName, subtitle: `${record.qcStatus} - ${record.createdBy || 'Inspector'}`, path: '/qc' }))) : [],
+      },
+      {
+        label: 'Logistics',
+        items: permissions.canAccessLogistics ? limit(manifests.filter((manifest) => resultMatches([manifest.manifestNumber, manifest.projectName, manifest.driverName, manifest.deliveryStatus, manifest.origin, manifest.destination], query)).map((manifest) => ({ id: `logistics-${manifest.id}`, title: manifest.manifestNumber, subtitle: `${manifest.driverName} - ${manifest.deliveryStatus}`, path: '/logistics' }))) : [],
+      },
+      {
+        label: 'Audit Logs',
+        items: permissions.canViewAudit ? limit(data.auditLogs.filter((log) => resultMatches([log.user, log.role, log.action, log.entityType, log.entityId, log.description, log.timestamp, log.createdAt], query)).map((log) => ({ id: `audit-${log.id}`, title: log.action, subtitle: `${log.user || 'System'} - ${log.entityType || log.module || 'Audit'}`, path: '/audit' }))) : [],
+      },
+      {
+        label: 'Users',
+        items: permissions.canManageAccounts ? limit(users.filter((user) => resultMatches([user.name, user.email, user.roleName, user.accountStatus, user.site], query)).map((user) => ({ id: `user-${user.id}`, title: user.name, subtitle: `${user.email} - ${user.roleName}`, path: '/accounts' }))) : [],
+      },
+    ];
+    return nextGroups.filter((group) => group.items.length > 0);
+  }, [data, debouncedTerm, manifests, permissions, users]);
+
+  const hasQuery = Boolean(debouncedTerm);
+  const hasResults = groups.some((group) => group.items.length > 0);
+
+  const openResult = (path) => {
+    const query = encodeURIComponent(term.trim());
+    navigate(`${path}${query ? `?search=${query}` : ''}`);
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={rootRef} className="relative w-full sm:max-w-md">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <input
+          aria-label="Search workspace"
+          type="search"
+          value={term}
+          onChange={(event) => { setTerm(event.target.value); setIsOpen(true); }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={(event) => { if (event.key === 'Escape') setIsOpen(false); }}
+          placeholder="Search projects, work items, audit logs..."
+          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      {isOpen && hasQuery && (
+        <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+          {hasResults ? groups.map((group) => (
+            <div key={group.label} className="py-1">
+              <p className="px-2 pb-1 text-[11px] font-black uppercase tracking-wide text-slate-400">{group.label}</p>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openResult(item.path)}
+                    className="block w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <span className="block truncate text-sm font-bold text-slate-800">{item.title}</span>
+                    <span className="block truncate text-xs font-semibold text-slate-500">{item.subtitle}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )) : (
+            <p className="px-3 py-4 text-center text-sm font-semibold text-slate-500">No results found.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const UserSwitcher = () => {
   const { users, activeUser, activeUserId, setActiveUserId, resetDemoData, token, logout } = useAppData();
@@ -161,17 +287,7 @@ const Layout = ({ children }) => {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/90 px-4 py-3 backdrop-blur-sm sm:px-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="w-full sm:max-w-md">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                  aria-label="Search workspace"
-                  type="text"
-                  placeholder="Search projects, work items, audit logs..."
-                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
+<GlobalSearch />
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
               <UserSwitcher />

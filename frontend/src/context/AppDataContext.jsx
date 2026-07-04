@@ -56,7 +56,7 @@ export function AppDataProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const [token, setToken] = useState(() => {
     try {
-      return window.localStorage.getItem(TOKEN_KEY) || null;
+      return window.sessionStorage.getItem(TOKEN_KEY) || null;
     } catch {
       return null;
     }
@@ -254,7 +254,7 @@ export function AppDataProvider({ children }) {
         body: JSON.stringify({ email, password }),
       });
       const { token: receivedToken, user } = res.data;
-      window.localStorage.setItem(TOKEN_KEY, receivedToken);
+      window.sessionStorage.setItem(TOKEN_KEY, receivedToken);
       setToken(receivedToken);
       setIsOffline(false);
       
@@ -267,7 +267,8 @@ export function AppDataProvider({ children }) {
   }, [fetchData]);
 
   const logout = useCallback(() => {
-    window.localStorage.removeItem(TOKEN_KEY);
+    apiRequest('/auth/logout', { method: 'POST' }).catch(() => {});
+    window.sessionStorage.removeItem(TOKEN_KEY);
     setToken(null);
   }, []);
 

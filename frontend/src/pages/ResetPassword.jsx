@@ -6,6 +6,25 @@ import { ActionButton, AlertMessage, FormField } from '../components/ui';
 
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-800 shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 
+const passwordRules = [
+  { label: 'Minimal 8 karakter', test: (value) => value.length >= 8 },
+  { label: 'Mengandung huruf', test: (value) => /[A-Za-z]/.test(value) },
+  { label: 'Mengandung angka', test: (value) => /\d/.test(value) },
+];
+
+function PasswordChecklist({ password }) {
+  return (
+    <ul className="mt-2 space-y-1 text-xs font-semibold">
+      {passwordRules.map((rule) => {
+        const passed = rule.test(password);
+        return <li key={rule.label} className={passed ? 'text-emerald-600' : 'text-slate-400'}>{passed ? '✓' : '•'} {rule.label}</li>;
+      })}
+    </ul>
+  );
+}
+
+
+
 export default function ResetPassword() {
   const [params] = useSearchParams();
   const [token, setToken] = useState(params.get('token') || '');
@@ -34,7 +53,7 @@ export default function ResetPassword() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 font-sans sm:p-6">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl shadow-black/30 sm:p-8">
         <h1 className="text-2xl font-black text-slate-900">Buat Password Baru</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Token hanya bisa dipakai sekali dan kedaluwarsa otomatis.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">Buat password baru dari link reset email. Token hanya bisa dipakai sekali.</p>
         {error && <AlertMessage type="error" title="Reset gagal">{error}</AlertMessage>}
         {message && <AlertMessage type="success" title="Password diperbarui">{message}</AlertMessage>}
         <form onSubmit={submit} className="mt-6 space-y-4">
@@ -43,6 +62,7 @@ export default function ResetPassword() {
           </FormField>
           <FormField id="new-password" label="Password baru" helper="Minimal 8 karakter, mengandung huruf dan angka.">
             <input id="new-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} className={inputClass} placeholder="Password baru" />
+            <PasswordChecklist password={password} />
           </FormField>
           <ActionButton type="submit" icon={KeyRound} disabled={isLoading} className="w-full">
             {isLoading ? 'Menyimpan...' : 'Reset Password'}

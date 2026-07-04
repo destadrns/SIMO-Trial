@@ -93,8 +93,12 @@ export default function MasterData() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const projectsById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
+  const query = searchTerm.trim().toLowerCase();
+  const filteredProjects = projects.filter((project) => !query || [project.code, project.name, project.clientName, project.client, project.location, project.status, project.priority].some((value) => String(value || '').toLowerCase().includes(query)));
+  const filteredWarehouses = warehouses.filter((warehouse) => !query || [warehouse.code, warehouse.name, warehouse.location, warehouse.category, warehouse.status, projectsById.get(warehouse.projectId)?.name, projectsById.get(warehouse.projectId)?.code].some((value) => String(value || '').toLowerCase().includes(query)));
 
   async function loadData() {
     setIsLoading(true);
@@ -230,6 +234,15 @@ export default function MasterData() {
       {message && <AlertMessage type="success" title="Master data updated">{message}</AlertMessage>}
       {error && <AlertMessage type="error" title="Master data issue">{error}</AlertMessage>}
 
+      <input
+        type="search"
+        value={searchTerm}
+        onChange={(event) => setSearchTerm(event.target.value)}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Search project or warehouse code, name, location, status..."
+        aria-label="Search master data"
+      />
+
       <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-2">
         <button
           type="button"
@@ -285,12 +298,12 @@ export default function MasterData() {
             </div>
             {isLoading ? (
               <div className="p-5 text-sm font-semibold text-slate-500">Loading projects...</div>
-            ) : projects.length === 0 ? (
+            ) : filteredProjects.length === 0 ? (
               <div className="px-5 pb-5"><EmptyState icon={Building2} title="No projects yet." description="Create the first client project to start operations." /></div>
             ) : (
               <>
                 <div className="space-y-3 px-4 pb-4 md:hidden">
-                  {projects.map((project) => (
+                  {filteredProjects.map((project) => (
                   <MobileDataCard
                     key={project.id}
                     title={`${project.code} - ${project.name}`}
@@ -372,12 +385,12 @@ export default function MasterData() {
             </div>
             {isLoading ? (
               <div className="p-5 text-sm font-semibold text-slate-500">Loading warehouses...</div>
-            ) : warehouses.length === 0 ? (
+            ) : filteredWarehouses.length === 0 ? (
               <div className="px-5 pb-5"><EmptyState icon={Boxes} title="No warehouses yet." description="Create a warehouse to start production tracking." /></div>
             ) : (
               <>
                 <div className="space-y-3 px-4 pb-4 md:hidden">
-                  {warehouses.map((warehouse) => {
+                  {filteredWarehouses.map((warehouse) => {
                   const project = projectsById.get(warehouse.projectId);
                   return (
                     <MobileDataCard

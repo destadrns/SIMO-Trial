@@ -1,4 +1,4 @@
-import cors from 'cors';
+﻿import cors from 'cors';
 import express from 'express';
 import { get } from './db/database.js';
 import { createAuthRouter } from './routes/auth.js';
@@ -20,6 +20,7 @@ import {
 } from './routes/workItems.js';
 import { getJwtSecret } from './utils/auth.js';
 import { asyncHandler, HttpError, sendData } from './utils/http.js';
+import { logger } from './utils/logger.js';
 
 export function createApp({ db }) {
   getJwtSecret();
@@ -28,10 +29,12 @@ export function createApp({ db }) {
   app.locals.db = db;
 
   app.disable('x-powered-by');
+  app.set('trust proxy', String(process.env.TRUST_PROXY || 'false').toLowerCase() === 'true');
   app.use(cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
+    credentials: true,
   }));
   app.use(express.json({ limit: '1mb' }));
 
@@ -41,6 +44,8 @@ export function createApp({ db }) {
       sendData(res, {
         status: 'ok',
         server: 'running',
+        environment: process.env.NODE_ENV || 'development',
+        uptimeSeconds: Math.round(process.uptime()),
         database: 'connected',
         timestamp: new Date().toISOString(),
       });
@@ -49,6 +54,8 @@ export function createApp({ db }) {
         data: {
           status: 'degraded',
           server: 'running',
+          environment: process.env.NODE_ENV || 'development',
+          uptimeSeconds: Math.round(process.uptime()),
           database: 'disconnected',
           timestamp: new Date().toISOString(),
         },
@@ -114,7 +121,7 @@ export function createApp({ db }) {
       });
     }
 
-    console.error(error);
+    logger.error('unhandled_request_error', { code: error?.code, message: error?.message, path: req.originalUrl, method: req.method });
     return res.status(500).json({
       error: {
         code: 'INTERNAL_SERVER_ERROR',

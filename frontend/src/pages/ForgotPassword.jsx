@@ -22,7 +22,7 @@ export default function ForgotPassword() {
     try {
       const res = await requestPasswordReset(email);
       setMessage(res.data.message);
-      setDemoToken(res.data.delivery?.resetToken || '');
+      setDemoToken(res.data.delivery?.resetUrl || res.data.delivery?.resetToken || '');
     } catch (err) {
       setError(err?.message || 'Permintaan reset gagal.');
     } finally {
@@ -34,10 +34,10 @@ export default function ForgotPassword() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 font-sans sm:p-6">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl shadow-black/30 sm:p-8">
         <h1 className="text-2xl font-black text-slate-900">Reset Password</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Masukkan email akun aktif. Respons tetap generik untuk mencegah enumerasi akun.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">Masukkan email akun. Jika terdaftar, instruksi reset password akan dikirim.</p>
         {error && <AlertMessage type="error" title="Permintaan gagal">{error}</AlertMessage>}
         {message && <AlertMessage type="success" title="Instruksi reset diproses">{message}</AlertMessage>}
-        {demoToken && <AlertMessage type="info" title="Demo token"><span className="break-all text-xs font-semibold">{demoToken}</span></AlertMessage>}
+        {demoToken && <AlertMessage type="info" title="Development reset preview"><span className="break-all text-xs font-semibold">{demoToken}</span></AlertMessage>}
         <form onSubmit={submit} className="mt-6 space-y-4">
           <FormField id="reset-email" label="Email akun">
             <input id="reset-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required className={inputClass} placeholder="email@perusahaan.com" />

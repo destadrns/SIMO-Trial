@@ -31,6 +31,7 @@ export default function Warehouses() {
     updateWorkItemStatus,
   } = useAppData();
   const [projectFilter, setProjectFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [savingItemId, setSavingItemId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -43,8 +44,13 @@ export default function Warehouses() {
           project: projectsById.get(item.projectId),
           warehouse: warehousesById.get(item.warehouseId),
         }))
-        .filter((item) => projectFilter === 'all' || item.projectId === projectFilter),
-    [data.workItems, projectFilter, projectsById, warehousesById],
+        .filter((item) => projectFilter === 'all' || item.projectId === projectFilter)
+        .filter((item) => {
+          const query = searchTerm.trim().toLowerCase();
+          if (!query) return true;
+          return [item.materialName, item.taskName, item.status, item.qcStatus, item.project?.code, item.project?.name, item.warehouse?.code, item.warehouse?.name].some((value) => String(value || '').toLowerCase().includes(query));
+        }),
+    [data.workItems, projectFilter, projectsById, searchTerm, warehousesById],
   );
 
   const blockedItems = data.workItems.filter((item) => item.status === 'Done' && !item.readyToShip);
@@ -213,6 +219,9 @@ export default function Warehouses() {
               </select>
             }
           />
+          <div className="mt-4">
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search material, task, project, warehouse, status..." aria-label="Search work items" />
+          </div>
         </div>
 
         {workItems.length === 0 ? (

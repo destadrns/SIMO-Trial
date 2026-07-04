@@ -13,7 +13,7 @@ function normalizeApiPath(path) {
 }
 
 export async function apiRequest(path, options = {}) {
-  const token = window.localStorage.getItem(TOKEN_KEY);
+  const token = window.sessionStorage.getItem(TOKEN_KEY);
   const headers = {
     ...options.headers,
   };
@@ -31,6 +31,7 @@ export async function apiRequest(path, options = {}) {
     response = await fetch(apiHostUrl + normalizeApiPath(path), {
       ...options,
       headers,
+      credentials: 'include',
     });
   } catch (error) {
     const networkError = new Error('Layanan sedang tidak dapat dihubungi. Silakan coba beberapa saat lagi.');
@@ -43,13 +44,17 @@ export async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     if (response.status === 401) {
-      window.localStorage.removeItem(TOKEN_KEY);
+      window.sessionStorage.removeItem(TOKEN_KEY);
     }
 
-    const error = new Error(payload?.error?.message || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
+    const defaultMessage = response.status === 401
+      ? 'Sesi Anda sudah berakhir atau tidak valid. Silakan login ulang.'
+      : 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.';
+    const error = new Error(payload?.error?.message || defaultMessage);
     error.status = response.status;
     error.code = payload?.error?.code;
     error.details = payload?.error?.details;
+    error.isSessionExpired = response.status === 401;
     throw error;
   }
 
@@ -68,8 +73,21 @@ export function getAdminUsers() {
   return apiRequest('/admin/users');
 }
 
+export function changeOwnPassword(payload) {
+  return apiRequest('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function resendUserInvite(userId) {
   return apiRequest(`/admin/users/${userId}/resend-invite`, {
+    method: 'POST',
+  });
+}
+
+export function sendUserPasswordReset(userId) {
+  return apiRequest(`/admin/users/${userId}/reset-password`, {
     method: 'POST',
   });
 }
@@ -110,11 +128,11 @@ export function resetPassword(payload) {
 
 
 export async function apiTextRequest(path, options = {}) {
-  const token = window.localStorage.getItem(TOKEN_KEY);
+  const token = window.sessionStorage.getItem(TOKEN_KEY);
   const headers = { ...options.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers });
+  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers, credentials: 'include' });
   const text = await response.text();
   if (!response.ok) {
     const error = new Error(text || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
@@ -126,11 +144,11 @@ export async function apiTextRequest(path, options = {}) {
 
 
 export async function apiBlobRequest(path, options = {}) {
-  const token = window.localStorage.getItem(TOKEN_KEY);
+  const token = window.sessionStorage.getItem(TOKEN_KEY);
   const headers = { ...options.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers });
+  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers, credentials: 'include' });
   if (!response.ok) {
     const error = new Error(await response.text() || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
     error.status = response.status;

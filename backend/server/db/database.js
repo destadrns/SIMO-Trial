@@ -189,6 +189,7 @@ export async function initializeDatabase(db, dropTables = false) {
   await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TEXT');
   await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0');
   await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at TEXT');
+  await exec(db, 'ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TEXT');
   await exec(db, 'ALTER TABLE logistics_manifests ADD COLUMN IF NOT EXISTS tracking_token TEXT UNIQUE');
   return db;
 }

@@ -35,6 +35,12 @@ function DeliveryStatusBadge({ status }) {
   );
 }
 
+function CheckinNotes({ notes }) {
+  const value = String(notes || '').trim();
+  if (!value) return null;
+  return <p className="mt-1 max-w-xs truncate text-xs text-slate-500" title={value}>Notes: {value}</p>;
+}
+
 export default function Logistics() {
   const [manifests, setManifests] = useState([]);
   const [selectedManifestId, setSelectedManifestId] = useState('');
@@ -48,11 +54,27 @@ export default function Logistics() {
   const [error, setError] = useState('');
   const [trackingLinkCopied, setTrackingLinkCopied] = useState(false);
   const [trackingLinkError, setTrackingLinkError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const useApi = useBackendApi;
 
+  const filteredManifests = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return manifests;
+    return manifests.filter((manifest) => [
+      manifest.manifestNumber,
+      manifest.projectName,
+      manifest.driverName,
+      manifest.driverPhone,
+      manifest.vehiclePlate,
+      manifest.deliveryStatus,
+      manifest.origin,
+      manifest.destination,
+    ].some((value) => String(value || '').toLowerCase().includes(query)));
+  }, [manifests, searchTerm]);
+
   const selectedManifest = useMemo(
-    () => manifests.find((manifest) => manifest.id === selectedManifestId) || manifests[0],
-    [manifests, selectedManifestId],
+    () => filteredManifests.find((manifest) => manifest.id === selectedManifestId) || filteredManifests[0] || manifests[0],
+    [filteredManifests, manifests, selectedManifestId],
   );
   const driverTrackingPath = selectedManifest ? `/driver/tracking/${encodeURIComponent(selectedManifest.id)}?token=${encodeURIComponent(selectedManifest.trackingToken || '')}` : '';
   const driverTrackingUrl = useMemo(() => {
@@ -198,7 +220,7 @@ export default function Logistics() {
             <StatusBadge tone={useApi ? 'emerald' : 'amber'}>
               {useApi ? 'Backend data enabled' : 'Demo data unavailable'}
             </StatusBadge>
-            <StatusBadge tone="blue">{manifests.length} manifests</StatusBadge>
+            <StatusBadge tone="blue">{filteredManifests.length}/{manifests.length} manifests</StatusBadge>
           </>
         }
         actions={
@@ -212,6 +234,15 @@ export default function Logistics() {
             {isLoading ? 'Loading...' : useApi ? 'Retry' : 'Refresh'}
           </button>
         }
+      />
+
+      <input
+        type="search"
+        value={searchTerm}
+        onChange={(event) => setSearchTerm(event.target.value)}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Search manifest, driver, status, destination..."
+        aria-label="Search logistics manifests"
       />
 
       {message && <AlertMessage type="success" title="Logistics updated">{message}</AlertMessage>}
@@ -231,13 +262,13 @@ export default function Logistics() {
             <div className="space-y-3 px-4 pb-4 md:hidden">
               {isLoading ? (
                 <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">Loading logistics data...</p>
-              ) : manifests.length === 0 ? (
+              ) : filteredManifests.length === 0 ? (
                 <EmptyState
                   icon={Truck}
                   title={useApi ? 'No manifests found yet.' : 'Logistics data is unavailable.'}
                   description={useApi ? 'Shipment manifests will appear after logistics data is seeded.' : 'Refresh after backend logistics data is enabled.'}
                 />
-              ) : manifests.map((manifest) => (
+              ) : filteredManifests.map((manifest) => (
                 <button
                   key={manifest.id}
                   type="button"
@@ -257,6 +288,7 @@ export default function Logistics() {
                   >
                     <p className="text-xs leading-5 text-slate-500">{manifest.origin} to {manifest.destination}</p>
                     <p className="text-xs font-semibold text-slate-600">Latest: {manifest.latestCheckin?.locationText || '-'}</p>
+                    <CheckinNotes notes={manifest.latestCheckin?.notes} />
                   </MobileDataCard>
                 </button>
               ))}
@@ -276,7 +308,7 @@ export default function Logistics() {
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <tr><td className="px-5 py-6 text-sm font-semibold text-slate-500" colSpan="6">Loading logistics data...</td></tr>
-                  ) : manifests.length === 0 ? (
+                  ) : filteredManifests.length === 0 ? (
                     <tr>
                       <td className="px-5 py-5" colSpan="6">
                         <EmptyState
@@ -286,7 +318,7 @@ export default function Logistics() {
                         />
                       </td>
                     </tr>
-                  ) : manifests.map((manifest) => (
+                  ) : filteredManifests.map((manifest) => (
                     <tr
                       key={manifest.id}
                       onClick={() => {
@@ -314,6 +346,7 @@ export default function Logistics() {
                       <td className="px-5 py-4 text-slate-600">
                         <p>{manifest.latestCheckin?.locationText || '-'}</p>
                         <p className="text-xs text-slate-400">{formatDateTime(manifest.latestCheckin?.checkedInAt)}</p>
+                        <CheckinNotes notes={manifest.latestCheckin?.notes} />
                       </td>
                       <td className="px-5 py-4 text-slate-500">{formatDateTime(manifest.updatedAt)}</td>
                     </tr>
@@ -344,6 +377,12 @@ export default function Logistics() {
                 <div className="flex items-start gap-3"><User className="mt-0.5 text-slate-500" size={18} /><div><p className="font-semibold text-slate-800">{selectedManifest.driverName}</p><p className="text-slate-500">{selectedManifest.driverPhone || '-'} | {selectedManifest.vehiclePlate}</p></div></div>
                 <div className="flex items-start gap-3"><MapPin className="mt-0.5 text-slate-500" size={18} /><div><p className="text-slate-800">{selectedManifest.origin}</p><p className="text-slate-500">{selectedManifest.destination}</p></div></div>
                 <div className="flex items-start gap-3"><Clock className="mt-0.5 text-slate-500" size={18} /><div><p>Departure: {formatDateTime(selectedManifest.departureTime)}</p><p className="text-slate-500">Arrival: {formatDateTime(selectedManifest.arrivalTime)}</p></div></div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Latest Check-in</p>
+                  <p className="mt-1 font-semibold text-slate-800">{selectedManifest.latestCheckin?.locationText || '-'}</p>
+                  <p className="text-xs text-slate-500">{formatDateTime(selectedManifest.latestCheckin?.checkedInAt)}</p>
+                  <CheckinNotes notes={selectedManifest.latestCheckin?.notes} />
+                </div>
               </div>
             ) : (
               <div className="mt-4">
@@ -434,7 +473,7 @@ export default function Logistics() {
                   setTrackingLinkCopied(false);
                   setTrackingLinkError('');
                 }} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {manifests.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.manifestNumber}</option>)}
+                {filteredManifests.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.manifestNumber}</option>)}
               </select>
               <label htmlFor="checkin-status" className="block text-sm font-semibold text-slate-600">Check-in status</label>
               <select id="checkin-status" value={checkinStatus} onChange={(event) => setCheckinStatus(event.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">

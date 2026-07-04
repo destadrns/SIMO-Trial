@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { createApp } from '../app.js';
 import { closeDatabase, createDatabase, get, run } from '../db/database.js';
@@ -395,6 +395,43 @@ test('logistics status update supports Arrived without server errors', async () 
   currentToken = null;
 });
 
+test('manual logistics check-in stores and returns notes', async () => {
+  const loginRes = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'dewi.lestari@simo.test', password: 'password' }),
+  });
+  currentToken = loginRes.body.data.token;
+
+  const created = await request('/api/logistics/manifests/lm-demo-001/checkins', {
+    method: 'POST',
+    body: JSON.stringify({
+      status: 'On Delivery',
+      locationText: 'Rest Area KM 57',
+      notes: '  Barang diterima sebagian, menunggu konfirmasi lokasi.  ',
+    }),
+  });
+
+  assert.equal(created.response.status, 201);
+  assert.equal(created.body.data.locationText, 'Rest Area KM 57');
+  assert.equal(created.body.data.notes, 'Barang diterima sebagian, menunggu konfirmasi lokasi.');
+
+  const stored = await get(db, 'SELECT notes FROM delivery_checkins WHERE id = ?', [created.body.data.id]);
+  assert.equal(stored.notes, 'Barang diterima sebagian, menunggu konfirmasi lokasi.');
+
+  const manifests = await request('/api/logistics/manifests');
+  assert.equal(manifests.response.status, 200);
+  const manifest = manifests.body.data.find((item) => item.id === 'lm-demo-001');
+  assert.equal(manifest.latestCheckin.notes, 'Barang diterima sebagian, menunggu konfirmasi lokasi.');
+
+  const emptyNotes = await request('/api/logistics/manifests/lm-demo-001/checkins', {
+    method: 'POST',
+    body: JSON.stringify({ status: 'On Delivery', locationText: 'Rest Area KM 58', notes: '   ' }),
+  });
+  assert.equal(emptyNotes.response.status, 201);
+  assert.equal(emptyNotes.body.data.notes, '');
+
+  currentToken = null;
+});
 
 test('logistics tracking token regeneration revokes old driver link', async () => {
   const loginRes = await request('/api/auth/login', {
@@ -1069,4 +1106,3 @@ test('change password rejects missing auth and non-super-admin users', async () 
   });
   assert.equal(forbidden.response.status, 403);
 });
-

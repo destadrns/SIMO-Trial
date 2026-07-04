@@ -16,9 +16,11 @@ Project ini sudah berbentuk **monorepo** dengan frontend React + Vite dan backen
 - **Driver GPS Tracking** dengan real browser geolocation.
 - **Demo GPS Route Simulator** agar live map tetap bisa didemokan tanpa bergantung izin GPS perangkat.
 - **Admin Live Map** berbasis Leaflet + OpenStreetMap dengan marker, route polyline, dan signal status.
-- **Audit Logs** untuk aktivitas penting seperti update produksi, QC, logistics, dan master data.
+- **Audit Logs** untuk aktivitas penting seperti update produksi, QC, logistics, report export, dan master data.
+- **Report Center** dengan preview data, export CSV, dan export PDF formal.
+- **Internal Account Lifecycle** untuk invite user, accept invite, forgot password, dan reset password.
 - **JWT Auth + Role-Based Access Control**.
-- **Mobile-friendly UI improvements** untuk tampilan dashboard dan QC history.
+- **Mobile-friendly UI improvements** untuk dashboard, tabel operasional, dan halaman inti.
 
 ---
 
@@ -55,28 +57,28 @@ Project ini sudah berbentuk **monorepo** dengan frontend React + Vite dan backen
 
 ```text
 Simo MUGI JAYA/
-├── frontend/                  # React + Vite frontend
-│   ├── src/
-│   │   ├── components/         # Shared UI and map components
-│   │   ├── context/            # App state and auth context
-│   │   ├── data/               # Demo seed data
-│   │   ├── pages/              # App pages
-│   │   └── services/           # API clients
-│   ├── index.html
-│   ├── package.json
-│   └── .env.example
-├── backend/                   # Express + PostgreSQL backend
-│   ├── server/
-│   │   ├── db/                 # DB helper and schema
-│   │   ├── routes/             # API routes
-│   │   ├── seed/               # Demo seed script
-│   │   ├── tests/              # Backend API tests
-│   │   └── utils/              # Auth, HTTP, serializers, audit logger
-│   ├── package.json
-│   └── .env.example
-├── package.json               # Root convenience scripts
-├── README.md
-└── .gitignore
+|-- frontend/                  # React + Vite frontend
+|   |-- src/
+|   |   |-- components/         # Shared UI and map components
+|   |   |-- context/            # App state and auth context
+|   |   |-- data/               # Demo seed data
+|   |   |-- pages/              # App pages
+|   |   `-- services/           # API clients
+|   |-- index.html
+|   |-- package.json
+|   `-- .env.example
+|-- backend/                   # Express + PostgreSQL backend
+|   |-- server/
+|   |   |-- db/                 # DB helper and schema
+|   |   |-- routes/             # API routes
+|   |   |-- seed/               # Demo seed script
+|   |   |-- tests/              # Backend API tests
+|   |   `-- utils/              # Auth, HTTP, serializers, audit logger
+|   |-- package.json
+|   `-- .env.example
+|-- package.json               # Root convenience scripts
+|-- README.md
+`-- .gitignore
 ```
 
 ---
@@ -94,6 +96,7 @@ Demo roles:
 - Foreman
 - QC Inspector
 - Admin
+- Super Admin
 
 Permission utama:
 
@@ -102,6 +105,8 @@ Permission utama:
 - Logistics access
 - Audit log view
 - Master data management
+- User invitation and account lifecycle
+- Report preview/export
 
 ---
 
@@ -255,6 +260,33 @@ Audit log mencatat aktivitas penting:
 - Delivery check-in
 - Project CRUD
 - Warehouse CRUD
+- Report export
+- Account lifecycle events
+
+---
+
+## 10. Report Center
+
+Report Center dipakai tim untuk melihat ringkasan data operasional sebelum export.
+
+Fitur utama:
+
+- Report type berdasarkan role user.
+- Preview data sebelum export.
+- Filter periode `startDate` dan `endDate`.
+- Export CSV dari backend.
+- Export PDF formal dari backend.
+- Metadata `generatedBy` dan `generatedAt`.
+- Audit log setiap aktivitas export.
+
+Endpoint utama:
+
+```text
+GET /api/reports/types
+GET /api/reports/:type/preview
+GET /api/reports/:type/export.csv
+GET /api/reports/:type/export.pdf
+```
 
 ---
 
@@ -395,7 +427,7 @@ Untuk presentasi cepat:
 7. Klik **Open Tracking Page**.
 8. Di halaman driver klik **Start Demo Route**.
 9. Kembali ke **Logistics**.
-10. Tunggu ±5 detik hingga map menampilkan marker dan route.
+10. Tunggu +/-5 detik hingga map menampilkan marker dan route.
 11. Buka **Audit Logs** untuk menunjukkan trace aktivitas.
 
 ---
@@ -438,17 +470,18 @@ npm run db:seed
 
 ---
 
-## Security Notes
+## Security Implementation
 
-- Commit `.env.example`, jangan commit `.env` asli.
-- Gunakan `JWT_SECRET` kuat untuk production.
-- Gunakan HTTPS untuk production, terutama untuk browser geolocation.
-- Driver GPS browser membutuhkan permission location.
-- Batasi CORS origin sesuai domain production.
-- Evidence upload hanya menerima JPG, PNG, dan WEBP dengan validasi ekstensi, MIME type, dan magic bytes.
-- Driver GPS tracking memakai manifest-specific tracking token pada URL driver.
-- JWT masih disimpan di `localStorage` untuk kesederhanaan demo; production sebaiknya memakai HttpOnly Secure SameSite cookies.
-- Jangan expose database credential di repository.
+Bagian ini menjelaskan keputusan keamanan yang sudah kami terapkan selama development.
+
+- File `.env.example` disediakan sebagai template, sedangkan `.env` asli tetap lokal dan tidak masuk Git.
+- Backend membutuhkan `JWT_SECRET` dari environment agar tidak ada fallback secret di source code.
+- CORS dikontrol melalui `CORS_ORIGIN` supaya frontend yang diizinkan dapat dibatasi per environment.
+- Evidence upload dibatasi ke JPG, PNG, dan WEBP dengan validasi ekstensi, MIME type, dan magic bytes.
+- Driver GPS tracking memakai token per manifest dan token dapat di-regenerate dari halaman Logistics.
+- Upload evidence disajikan lewat route authenticated agar file tidak menjadi public static bebas.
+- Invite token dan reset password token disimpan sebagai hash SHA-256 dan bersifat one-time-use.
+- Login, failed login, invite, reset password, dan export report dicatat ke audit log tanpa menyimpan password/token mentah.
 
 Cek env ignored:
 
@@ -458,31 +491,29 @@ git check-ignore -v backend/.env frontend/.env
 
 ---
 
-## Known Limitations
+## Development Notes
 
-- Live map masih polling, belum WebSocket/SSE.
-- Geofencing belum tersedia.
-- ETA calculation belum tersedia.
-- Route deviation alert belum tersedia.
-- User management UI belum lengkap.
-- Migration system formal belum ditambahkan.
-- Evidence file disajikan lewat route authenticated; production bisa memakai object storage private.
-- Driver tracking link berisi token per manifest dan bisa di-regenerate dari halaman Logistics.
-- JWT masih disimpan di `localStorage` untuk demo, bukan cookie HttpOnly production.
-- Production deployment config belum final.
+Catatan ini dipakai tim sebagai batas scope MVP dan bahan sprint lanjutan.
+
+- Live map saat ini memakai polling 5 detik; realtime WebSocket/SSE disiapkan untuk fase Logistics Pro.
+- ETA, geofencing, dan route deviation alert masuk backlog logistics lanjutan.
+- JWT masih disimpan di `localStorage` untuk kebutuhan demo; migrasi HttpOnly Secure SameSite cookie disiapkan untuk production hardening.
+- Konfigurasi SMTP production dikelola per environment; mode development mengembalikan invite/reset URL untuk demo lokal.
+- Schema database dibuat additive lewat startup guard; migration versioning formal masuk fase stabilization.
+- Deployment production, backup, dan monitoring disiapkan sebagai pekerjaan environment, bukan bagian dari demo lokal.
 
 ---
 
-## Roadmap
+## Development Roadmap
 
-### Phase 1 — Stabilization
+### Phase 1 - Stabilization
 
 - Hardening auth/session.
-- Better error boundary.
-- Database migration system.
-- More automated tests.
+- Error boundary dan empty/error state yang lebih konsisten.
+- Database migration versioning.
+- Regression test untuk flow utama.
 
-### Phase 2 — Logistics Pro
+### Phase 2 - Logistics Pro
 
 - WebSocket/SSE realtime tracking.
 - Geofencing alert.
@@ -490,7 +521,7 @@ git check-ignore -v backend/.env frontend/.env
 - ETA and delay detection.
 - Driver and vehicle master data.
 
-### Phase 3 — Production Pro
+### Phase 3 - Production Pro
 
 - Work order CRUD.
 - Material stock.
@@ -498,28 +529,34 @@ git check-ignore -v backend/.env frontend/.env
 - Production scheduling.
 - Warehouse transfer.
 
-### Phase 4 — Business Intelligence
+### Phase 4 - Business Intelligence
 
 - KPI dashboard.
-- Export PDF/Excel.
-- Daily reports.
+- Scheduled reports.
+- Email report delivery.
 - Audit analytics.
 - Delivery performance report.
 
 ---
 
-## Current Status
+## Current Development Status
 
-SIMO Mugi Jaya saat ini sudah siap untuk **demo internal, hackathon, dan MVP client review**.
+SIMO Mugi Jaya saat ini berada pada tahap **demo-ready MVP** untuk presentasi internal, hackathon, dan review awal stakeholder.
 
-Untuk production live client, lanjutkan hardening pada:
+Scope yang sudah berjalan:
 
-- Security
-- Deployment
-- Backup strategy
-- Migration
-- Monitoring
-- Full QA regression
+- Authentication dan RBAC.
+- Dashboard operasional.
+- Master data project dan warehouse.
+- Production work item update.
+- QC checklist dengan evidence upload.
+- Logistics manifest dan driver tracking token.
+- Live map tracking dengan simulator rute demo.
+- Audit logs.
+- Report Center dengan preview, CSV export, dan PDF export.
+- Internal account lifecycle untuk invite user dan reset password.
+
+Fokus berikutnya adalah production hardening, deployment, backup strategy, monitoring, dan regression QA.
 
 ---
 
@@ -532,7 +569,7 @@ SIMO tidak menyediakan public registration. Akun internal dibuat lewat undangan 
 - Tidak ada tombol **Create Account** atau public self-registration di login.
 - Super Admin mengundang user dari halaman **Accounts/User Management**.
 - Invite/reset token hanya disimpan sebagai hash SHA-256 di database.
-- Raw token hanya muncul sebagai fallback development response jika SMTP belum dikonfigurasi.
+- Raw token hanya muncul sebagai fallback development response saat memakai mode email lokal.
 - Token invite dan reset bersifat one-time-use serta punya expiry.
 
 ### Flow
@@ -555,7 +592,7 @@ EMAIL_PASS=
 EMAIL_FROM="SIMO Mugi Jaya <no-reply@example.com>"
 ```
 
-Jika `EMAIL_HOST` kosong, backend memakai development fallback dan mengembalikan invite/reset URL di API response untuk demo lokal. Production harus memakai SMTP/transactional email dan HTTPS.
+Jika `EMAIL_HOST` kosong, backend memakai development fallback dan mengembalikan invite/reset URL di API response untuk demo lokal. Environment production memakai SMTP/transactional email dan HTTPS.
 
 ### Account Lifecycle API
 
@@ -571,9 +608,3 @@ POST   /api/auth/password/forgot
 GET    /api/auth/password/reset/verify?token=...
 POST   /api/auth/password/reset
 ```
-
-### Known Limitations
-
-- JWT masih disimpan di `localStorage` untuk demo; production sebaiknya pindah ke HttpOnly Secure SameSite cookie.
-- SMTP asli belum diaktifkan; fallback development tidak boleh dipakai production.
-- Migration system formal belum ada; schema masih additive lewat startup guard.

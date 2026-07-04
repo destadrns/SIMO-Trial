@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Activity, Download, FileText, ListFilter, Users } from 'lucide-react';
 import { useAppData } from '../context/AppDataCore';
-import { AlertMessage, EmptyState, PageHeader, SectionHeading, StatusBadge, Surface } from '../components/ui';
+import { AlertMessage, EmptyState, MobileDataCard, PageHeader, ResponsiveTable, SectionHeading, StatusBadge, Surface } from '../components/ui';
 
 const actionStyles = {
   UPDATE: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -111,6 +111,40 @@ export default function AuditLogs() {
     setExportMessage(`Exported ${logs.length} audit records to CSV.`);
   };
 
+  const rows = logs.map((log) => (
+    <tr key={log.id} className="transition-colors hover:bg-slate-50/70">
+      <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-700">{log.timestamp}</td>
+      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-700">{log.user}</td>
+      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">{log.role}</td>
+      <td className="whitespace-nowrap px-5 py-4"><Badge type={log.action} /></td>
+      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">{getAuditArea(log)}</td>
+      <td className="px-5 py-4 text-sm text-slate-500">{log.previousValue || '-'}</td>
+      <td className="px-5 py-4 text-sm font-semibold text-slate-700">{log.newValue || '-'}</td>
+      <td className="px-5 py-4 text-sm text-slate-500">{log.description}</td>
+    </tr>
+  ));
+
+  const mobileCards = logs.map((log) => (
+    <MobileDataCard
+      key={log.id}
+      title={getAuditArea(log)}
+      subtitle={`${log.user} � ${log.role} � ${log.timestamp}`}
+      meta={<Badge type={log.action} />}
+    >
+      <p className="text-sm leading-5 text-slate-700">{log.description}</p>
+      <div className="grid gap-2 rounded-lg bg-slate-50 p-3 text-xs sm:grid-cols-2">
+        <div>
+          <span className="block font-bold uppercase tracking-wide text-slate-400">Before</span>
+          <span className="mt-1 block break-words font-semibold text-slate-600">{log.previousValue || '-'}</span>
+        </div>
+        <div>
+          <span className="block font-bold uppercase tracking-wide text-slate-400">After</span>
+          <span className="mt-1 block break-words font-semibold text-slate-700">{log.newValue || '-'}</span>
+        </div>
+      </div>
+    </MobileDataCard>
+  ));
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
@@ -173,48 +207,21 @@ export default function AuditLogs() {
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-left">
-            <thead>
-              <tr className="border-y border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                <th className="px-5 py-4">Timestamp</th>
-                <th className="px-5 py-4">User</th>
-                <th className="px-5 py-4">Role</th>
-                <th className="px-5 py-4">Action</th>
-                <th className="px-5 py-4">Area</th>
-                <th className="px-5 py-4">Before</th>
-                <th className="px-5 py-4">After</th>
-                <th className="px-5 py-4">Details</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {logs.map((log) => (
-                <tr key={log.id} className="transition-colors hover:bg-slate-50/70">
-                  <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-700">{log.timestamp}</td>
-                  <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-700">{log.user}</td>
-                  <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">{log.role}</td>
-                  <td className="whitespace-nowrap px-5 py-4">
-                    <Badge type={log.action} />
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">{getAuditArea(log)}</td>
-                  <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">{log.previousValue}</td>
-                  <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-slate-700">{log.newValue}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500">{log.description}</td>
-                </tr>
-              ))}
-              {logs.length === 0 && (
-                <tr>
-                  <td colSpan="8" className="px-5 py-6">
-                    <EmptyState
-                      icon={FileText}
-                      title="No audit logs match the selected filters."
-                      description="Audit records appear after production, QC, or logistics actions are performed."
-                    />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="p-4 pt-0 md:p-0">
+          {logs.length ? (
+            <ResponsiveTable
+              headers={['Timestamp', 'User', 'Role', 'Action', 'Area', 'Before', 'After', 'Details']}
+              mobileCards={mobileCards}
+            >
+              <tbody className="divide-y divide-slate-100">{rows}</tbody>
+            </ResponsiveTable>
+          ) : (
+            <EmptyState
+              icon={FileText}
+              title="No audit logs match the selected filters."
+              description="Audit records appear after production, QC, logistics, or account lifecycle actions are performed."
+            />
+          )}
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 p-4">

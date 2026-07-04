@@ -144,3 +144,100 @@ export function LoadingState({ text = 'Loading data...' }) {
     </div>
   );
 }
+
+
+const buttonTones = {
+  primary: 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-200',
+  secondary: 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200',
+  danger: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 focus:ring-rose-200',
+};
+
+export function ActionButton({ children, icon: Icon, tone = 'primary', className = '', ...props }) {
+  const toneClass = buttonTones[tone] || buttonTones.primary;
+  return (
+    <button
+      type="button"
+      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-bold shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:pointer-events-none disabled:opacity-60 ${toneClass} ${className}`}
+      {...props}
+    >
+      {Icon && <Icon size={17} />}
+      {children}
+    </button>
+  );
+}
+
+export function FormField({ id, label, helper, error, children }) {
+  return (
+    <div>
+      {label && (
+        <label htmlFor={id} className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+          {label}
+        </label>
+      )}
+      {children}
+      {helper && !error && <p className="mt-1.5 text-xs leading-5 text-slate-500">{helper}</p>}
+      {error && <p className="mt-1.5 text-xs font-semibold leading-5 text-rose-600">{error}</p>}
+    </div>
+  );
+}
+
+export function FormSection({ title, description, children, className = '' }) {
+  return (
+    <Surface className={className}>
+      {(title || description) && (
+        <div className="mb-5">
+          {title && <h2 className="text-lg font-black text-slate-900">{title}</h2>}
+          {description && <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>}
+        </div>
+      )}
+      <div className="space-y-4">{children}</div>
+    </Surface>
+  );
+}
+
+export function ErrorState({ title = 'Something went wrong.', description, action }) {
+  return <EmptyState icon={AlertCircle} title={title} description={description} action={action} />;
+}
+
+export function ResponsiveTable({ headers, children, mobileCards, emptyState }) {
+  const isEmpty = !children && !mobileCards;
+  if (isEmpty) {
+    return emptyState || null;
+  }
+
+  return (
+    <>
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[760px] border-collapse text-left">
+          {headers && (
+            <thead>
+              <tr className="border-y border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                {headers.map((header) => (
+                  <th key={header} className="px-5 py-4">{header}</th>
+                ))}
+              </tr>
+            </thead>
+          )}
+          {children}
+        </table>
+      </div>
+      <div className="space-y-3 md:hidden">{mobileCards}</div>
+    </>
+  );
+}
+
+export function MobileDataCard({ title, subtitle, meta, children, actions }) {
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-black text-slate-900">{title}</h3>
+          {subtitle && <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p>}
+        </div>
+        {meta && <div className="flex-shrink-0">{meta}</div>}
+      </div>
+      {children && <div className="mt-3 space-y-2 text-sm text-slate-600">{children}</div>}
+      {actions && <div className="mt-4 flex flex-wrap gap-2">{actions}</div>}
+    </article>
+  );
+}

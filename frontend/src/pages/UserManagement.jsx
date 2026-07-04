@@ -1,12 +1,35 @@
 ﻿import { useMemo, useState } from 'react';
+import { MailPlus, ShieldCheck, Users } from 'lucide-react';
 import { inviteUser } from '../services/apiClient';
 import { useAppData } from '../context/AppDataCore';
-import { StatusBadge } from '../components/ui';
+import {
+  ActionButton,
+  AlertMessage,
+  EmptyState,
+  FormField,
+  FormSection,
+  MobileDataCard,
+  PageHeader,
+  ResponsiveTable,
+  SectionHeading,
+  StatusBadge,
+  Surface,
+} from '../components/ui';
 
-export default function AccountLifecycle() {
+const fieldClass = 'w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-800 shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+
+function statusTone(status) {
+  if (status === 'ACTIVE') return 'emerald';
+  if (status === 'INVITED') return 'amber';
+  if (status === 'DISABLED' || status === 'SUSPENDED') return 'rose';
+  return 'slate';
+}
+
+export default function UserManagement() {
   const { data, users } = useAppData();
   const roles = useMemo(() => data.roles.filter((role) => role.id !== 'super-admin'), [data.roles]);
-  const [form, setForm] = useState({ name: '', email: '', roleId: roles[0]?.id || 'foreman', site: '' });
+  const defaultRole = roles[0]?.id || 'foreman';
+  const [form, setForm] = useState({ name: '', email: '', roleId: defaultRole, site: '' });
   const [inviteToken, setInviteToken] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -20,8 +43,8 @@ export default function AccountLifecycle() {
     setIsLoading(true);
     try {
       const res = await inviteUser(form);
-      setInviteToken(res.data.delivery.inviteToken);
-      setForm({ name: '', email: '', roleId: roles[0]?.id || 'foreman', site: '' });
+      setInviteToken(res.data.delivery?.inviteToken || res.data.delivery?.inviteUrl || 'Invite created.');
+      setForm({ name: '', email: '', roleId: defaultRole, site: '' });
     } catch (err) {
       setError(err?.message || 'Undangan gagal dibuat.');
     } finally {
@@ -29,54 +52,112 @@ export default function AccountLifecycle() {
     }
   };
 
+  const userRows = users.map((user) => (
+    <tr key={user.id} className="transition-colors hover:bg-slate-50/70">
+      <td className="px-5 py-4">
+        <span className="block font-bold text-slate-900">{user.name}</span>
+        <span className="block text-xs text-slate-500">{user.email}</span>
+      </td>
+      <td className="px-5 py-4 text-sm font-semibold text-slate-600">{user.roleName}</td>
+      <td className="px-5 py-4 text-sm text-slate-500">{user.site || '-'}</td>
+      <td className="px-5 py-4">
+        <StatusBadge tone={statusTone(user.accountStatus || 'ACTIVE')}>{user.accountStatus || 'ACTIVE'}</StatusBadge>
+      </td>
+    </tr>
+  ));
+
+  const mobileCards = users.map((user) => (
+    <MobileDataCard
+      key={user.id}
+      title={user.name}
+      subtitle={user.email}
+      meta={<StatusBadge tone={statusTone(user.accountStatus || 'ACTIVE')}>{user.accountStatus || 'ACTIVE'}</StatusBadge>}
+    >
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <span className="block font-bold uppercase tracking-wide text-slate-400">Role</span>
+          <span className="mt-1 block font-semibold text-slate-700">{user.roleName}</span>
+        </div>
+        <div>
+          <span className="block font-bold uppercase tracking-wide text-slate-400">Site</span>
+          <span className="mt-1 block font-semibold text-slate-700">{user.site || '-'}</span>
+        </div>
+      </div>
+    </MobileDataCard>
+  ));
+
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-black text-slate-900">Account Lifecycle</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Akun baru hanya dibuat melalui undangan Super Admin. Token disimpan hash-only di server.</p>
-      </div>
+      <PageHeader
+        eyebrow="Super Admin"
+        title="Account Lifecycle"
+        description="Invite-only user creation with hash-only tokens, clear account status, and audit-ready lifecycle actions."
+        meta={
+          <>
+            <StatusBadge tone="blue">{users.length} users</StatusBadge>
+            <StatusBadge tone="emerald">Invite-only</StatusBadge>
+          </>
+        }
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-        <form onSubmit={submit} className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-black text-slate-900">Invite User</h2>
-          {error && <p className="rounded-lg bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</p>}
+      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+        <FormSection
+          title="Invite User"
+          description="Create an internal account invite. Raw token appears only in local development fallback."
+        >
+          {error && <AlertMessage type="error" title="Invite failed">{error}</AlertMessage>}
           {inviteToken && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-              <p className="text-sm font-bold text-emerald-800">Demo invite token</p>
-              <p className="mt-1 break-all text-xs font-semibold text-emerald-700">{inviteToken}</p>
-              <p className="mt-2 text-xs text-emerald-700">Production nanti kirim via email, bukan tampil permanen.</p>
+            <AlertMessage type="success" title="Invite created">
+              <span className="block break-all text-xs font-semibold">{inviteToken}</span>
+              <span className="mt-1 block text-xs">Production should deliver this by email, not by screen copy.</span>
+            </AlertMessage>
+          )}
+
+          <form onSubmit={submit} className="space-y-4">
+            <FormField id="invite-name" label="Full name">
+              <input id="invite-name" value={form.name} onChange={(event) => update('name', event.target.value)} required className={fieldClass} placeholder="Nama lengkap" />
+            </FormField>
+            <FormField id="invite-email" label="Email">
+              <input id="invite-email" type="email" value={form.email} onChange={(event) => update('email', event.target.value)} required className={fieldClass} placeholder="email@perusahaan.com" />
+            </FormField>
+            <FormField id="invite-role" label="Role">
+              <select id="invite-role" value={form.roleId} onChange={(event) => update('roleId', event.target.value)} className={fieldClass}>
+                {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+              </select>
+            </FormField>
+            <FormField id="invite-site" label="Site / division" helper="Optional, used for operational context.">
+              <input id="invite-site" value={form.site} onChange={(event) => update('site', event.target.value)} className={fieldClass} placeholder="Site / lokasi" />
+            </FormField>
+            <ActionButton type="submit" icon={MailPlus} disabled={isLoading} className="w-full">
+              {isLoading ? 'Membuat undangan...' : 'Kirim Undangan'}
+            </ActionButton>
+          </form>
+        </FormSection>
+
+        <Surface padding="p-0" className="overflow-hidden">
+          <div className="p-5">
+            <SectionHeading
+              icon={Users}
+              title="User Status"
+              description="Mobile view uses cards so role, site, and status stay readable without horizontal scrolling."
+              action={<StatusBadge tone="slate"><ShieldCheck size={13} className="mr-1" />RBAC protected</StatusBadge>}
+            />
+          </div>
+          {users.length ? (
+            <div className="p-4 pt-0 md:p-0">
+              <ResponsiveTable
+                headers={['User', 'Role', 'Site', 'Status']}
+                mobileCards={mobileCards}
+              >
+                <tbody className="divide-y divide-slate-100">{userRows}</tbody>
+              </ResponsiveTable>
+            </div>
+          ) : (
+            <div className="p-5 pt-0">
+              <EmptyState icon={Users} title="No users found." description="Invited and active users will appear here." />
             </div>
           )}
-          <input value={form.name} onChange={(event) => update('name', event.target.value)} required className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold" placeholder="Nama lengkap" />
-          <input type="email" value={form.email} onChange={(event) => update('email', event.target.value)} required className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold" placeholder="email@perusahaan.com" />
-          <select value={form.roleId} onChange={(event) => update('roleId', event.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold">
-            {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-          </select>
-          <input value={form.site} onChange={(event) => update('site', event.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm font-semibold" placeholder="Site / lokasi" />
-          <button disabled={isLoading} className="w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-60">
-            {isLoading ? 'Membuat...' : 'Kirim Undangan'}
-          </button>
-        </form>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-black text-slate-900">User Status</h2>
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
-                <tr><th className="px-3 py-2">User</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Status</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td className="px-3 py-3"><span className="font-bold text-slate-900">{user.name}</span><span className="block text-xs text-slate-500">{user.email}</span></td>
-                    <td className="px-3 py-3 text-slate-600">{user.roleName}</td>
-                    <td className="px-3 py-3"><StatusBadge tone={user.accountStatus === 'ACTIVE' ? 'green' : 'amber'}>{user.accountStatus || 'ACTIVE'}</StatusBadge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        </Surface>
       </div>
     </div>
   );

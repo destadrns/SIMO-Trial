@@ -37,6 +37,6 @@ describe('account lifecycle pages', () => {
     });
     render(<UserManagement />);
     expect(screen.getByText('Account Lifecycle')).toBeInTheDocument();
-    expect(screen.getByText('User One')).toBeInTheDocument();
+    expect(screen.getAllByText('User One').length).toBeGreaterThan(0);
   });
 });

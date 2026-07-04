@@ -8,7 +8,7 @@ import {
 } from '../services/logisticsApi';
 import { useBackendApi } from '../services/apiClient';
 import LogisticsLiveMap from '../components/LogisticsLiveMap';
-import { AlertMessage, EmptyState, PageHeader, SectionHeading, StatusBadge, Surface } from '../components/ui';
+import { AlertMessage, EmptyState, MobileDataCard, PageHeader, SectionHeading, StatusBadge, Surface } from '../components/ui';
 
 const statusOptions = ['Prepared', 'On Delivery', 'Arrived', 'Issue'];
 
@@ -228,7 +228,40 @@ export default function Logistics() {
               />
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="space-y-3 px-4 pb-4 md:hidden">
+              {isLoading ? (
+                <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">Loading logistics data...</p>
+              ) : manifests.length === 0 ? (
+                <EmptyState
+                  icon={Truck}
+                  title={useApi ? 'No manifests found yet.' : 'Logistics data is unavailable.'}
+                  description={useApi ? 'Shipment manifests will appear after logistics data is seeded.' : 'Refresh after backend logistics data is enabled.'}
+                />
+              ) : manifests.map((manifest) => (
+                <button
+                  key={manifest.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedManifestId(manifest.id);
+                    setStatusValue(manifest.deliveryStatus);
+                    setCheckinStatus(manifest.deliveryStatus);
+                    setTrackingLinkCopied(false);
+                    setTrackingLinkError('');
+                  }}
+                  className="w-full text-left"
+                >
+                  <MobileDataCard
+                    title={manifest.manifestNumber}
+                    subtitle={`${manifest.driverName} - ${manifest.vehiclePlate}`}
+                    meta={<DeliveryStatusBadge status={manifest.deliveryStatus} />}
+                  >
+                    <p className="text-xs leading-5 text-slate-500">{manifest.origin} to {manifest.destination}</p>
+                    <p className="text-xs font-semibold text-slate-600">Latest: {manifest.latestCheckin?.locationText || '-'}</p>
+                  </MobileDataCard>
+                </button>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full divide-y divide-slate-100 text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>

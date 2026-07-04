@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Boxes, Building2, Edit3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
-import { AlertMessage, EmptyState, PageHeader, SectionHeading, StatusBadge, Surface } from '../components/ui';
+import { AlertMessage, EmptyState, MobileDataCard, PageHeader, SectionHeading, StatusBadge, Surface } from '../components/ui';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectsApi';
 import { getWarehouses, createWarehouse, updateWarehouse, deleteWarehouse } from '../services/warehousesApi';
 
@@ -288,7 +288,26 @@ export default function MasterData() {
             ) : projects.length === 0 ? (
               <div className="px-5 pb-5"><EmptyState icon={Building2} title="No projects yet." description="Create the first client project to start operations." /></div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <div className="space-y-3 px-4 pb-4 md:hidden">
+                  {projects.map((project) => (
+                  <MobileDataCard
+                    key={project.id}
+                    title={`${project.code} - ${project.name}`}
+                    subtitle={`${project.clientName} - ${project.location || '-'}`}
+                    meta={<StatusBadge tone={project.status === 'Active' ? 'emerald' : project.status === 'Completed' ? 'blue' : 'amber'}>{project.status}</StatusBadge>}
+                    actions={
+                      <>
+                        <ActionButton onClick={() => { setEditingProjectId(project.id); setProjectForm({ code: project.code, name: project.name, clientName: project.clientName, location: project.location || '', status: project.status, dueDate: project.dueDate || '', priority: project.priority || 'Medium' }); }} disabled={isSaving}><Edit3 size={15} />Edit</ActionButton>
+                        <ActionButton tone="rose" onClick={() => handleDeleteProject(project)} disabled={isSaving}><Trash2 size={15} />Delete</ActionButton>
+                      </>
+                    }
+                  >
+                    <p className="text-xs font-semibold text-slate-600">Due: {project.dueDate || '-'}</p>
+                  </MobileDataCard>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-full divide-y divide-slate-100 text-sm">
                   <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                     <tr><th className="px-5 py-3">Project</th><th className="px-5 py-3">Client</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Due</th><th className="px-5 py-3">Actions</th></tr>
@@ -309,8 +328,9 @@ export default function MasterData() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                  </table>
+                </div>
+              </>
             )}
           </Surface>
         </div>
@@ -355,7 +375,29 @@ export default function MasterData() {
             ) : warehouses.length === 0 ? (
               <div className="px-5 pb-5"><EmptyState icon={Boxes} title="No warehouses yet." description="Create a warehouse to start production tracking." /></div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <div className="space-y-3 px-4 pb-4 md:hidden">
+                  {warehouses.map((warehouse) => {
+                  const project = projectsById.get(warehouse.projectId);
+                  return (
+                    <MobileDataCard
+                      key={warehouse.id}
+                      title={`${warehouse.code} - ${warehouse.name}`}
+                      subtitle={project?.code ? `${project.code} - ${project.name}` : 'No linked project'}
+                      meta={<StatusBadge tone={warehouse.status === 'Active' ? 'emerald' : warehouse.status === 'Maintenance' ? 'amber' : 'slate'}>{warehouse.status}</StatusBadge>}
+                      actions={
+                        <>
+                          <ActionButton onClick={() => { setEditingWarehouseId(warehouse.id); setWarehouseForm({ projectId: warehouse.projectId || '', code: warehouse.code, name: warehouse.name, location: warehouse.location || '', category: warehouse.category || '', status: warehouse.status || 'Active' }); }} disabled={isSaving}><Edit3 size={15} />Edit</ActionButton>
+                          <ActionButton tone="rose" onClick={() => handleDeleteWarehouse(warehouse)} disabled={isSaving}><Trash2 size={15} />Delete</ActionButton>
+                        </>
+                      }
+                    >
+                      <p className="text-xs font-semibold text-slate-600">{warehouse.location || '-'} - {warehouse.category || '-'}</p>
+                    </MobileDataCard>
+                  );
+                  })}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-full divide-y divide-slate-100 text-sm">
                   <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                     <tr><th className="px-5 py-3">Warehouse</th><th className="px-5 py-3">Project</th><th className="px-5 py-3">Location</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Actions</th></tr>
@@ -379,8 +421,9 @@ export default function MasterData() {
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
+                  </table>
+                </div>
+              </>
             )}
           </Surface>
         </div>

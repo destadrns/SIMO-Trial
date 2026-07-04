@@ -114,6 +114,7 @@ export function AppDataProvider({ children }) {
       canUpdateProduction: ['foreman', 'production-manager', 'admin'].includes(roleId),
       canSubmitQc: ['qc-inspector', 'admin'].includes(roleId),
       canViewAudit: ['owner', 'production-manager', 'admin', 'super-admin'].includes(roleId),
+      canViewReports: ['owner', 'production-manager', 'admin', 'super-admin'].includes(roleId),
       canAccessLogistics: ['owner', 'production-manager', 'admin'].includes(roleId),
       canManageAccounts: roleId === 'super-admin',
     };

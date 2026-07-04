@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ClipboardList, Factory, Package, ShieldAlert } from 'lucide-react';
 import { useAppData } from '../context/AppDataCore';
 import { WORK_STATUS_OPTIONS } from '../data/seedData';
-import { AlertMessage, EmptyState, MetricCard, PageHeader, SectionHeading, StatusBadge, Surface } from '../components/ui';
+import { AlertMessage, EmptyState, MetricCard, MobileDataCard, PageHeader, ResponsiveTable, SectionHeading, StatusBadge, Surface } from '../components/ui';
 
 const statusStyles = {
   'To-Do': 'border-slate-200 bg-slate-100 text-slate-700',
@@ -67,6 +67,82 @@ export default function Warehouses() {
       setSavingItemId('');
     }
   };
+
+
+  const renderStatusSelect = (item, compact = false) => (
+    <div>
+      <select
+        aria-label={`Status for ${item.materialName}`}
+        value={item.status}
+        disabled={!permissions.canUpdateProduction || savingItemId === item.id}
+        onChange={(event) => handleStatusChange(item, event.target.value)}
+        className={`${compact ? 'w-full' : 'w-[150px]'} rounded-lg border px-3 py-2 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-70 ${statusStyles[item.status]}`}
+      >
+        {WORK_STATUS_OPTIONS.map((status) => (
+          <option key={status} value={status}>{status}</option>
+        ))}
+      </select>
+      {savingItemId === item.id && <p className="mt-1 text-xs font-semibold text-blue-600">Saving...</p>}
+    </div>
+  );
+
+  const renderQcBadge = (item) => (
+    <span className={`inline-flex shrink-0 whitespace-nowrap rounded border px-2.5 py-1 text-xs font-bold ${qcStatusStyles[item.qcStatus]}`}>
+      {item.qcStatus}
+    </span>
+  );
+
+  const renderReadyBadge = (item) => (
+    <span className={`inline-flex shrink-0 whitespace-nowrap rounded border px-2.5 py-1 text-xs font-bold ${readyStyles[item.readyToShip]}`}>
+      {item.readyToShip ? 'Ready' : 'Not Ready'}
+    </span>
+  );
+
+  const tableRows = workItems.map((item) => (
+    <tr key={item.id} className="transition-colors hover:bg-blue-50/40">
+      <td className="px-5 py-4">
+        <p className="font-semibold text-slate-800">{item.project?.code}</p>
+        <p className="text-sm text-slate-500">{item.project?.name}</p>
+      </td>
+      <td className="px-5 py-4">
+        <p className="font-semibold text-slate-800">{item.warehouse?.code}</p>
+        <p className="text-sm text-slate-500">{item.warehouse?.name}</p>
+      </td>
+      <td className="px-5 py-4">
+        <p className="font-semibold text-slate-800">{item.materialName}</p>
+        <p className="text-sm text-slate-500">{item.taskName}</p>
+      </td>
+      <td className="px-5 py-4 text-sm font-semibold text-slate-700">{item.quantity} {item.unit}</td>
+      <td className="px-5 py-4">{renderStatusSelect(item)}</td>
+      <td className="px-5 py-4">{renderQcBadge(item)}</td>
+      <td className="px-5 py-4">{renderReadyBadge(item)}</td>
+    </tr>
+  ));
+
+  const mobileCards = workItems.map((item) => (
+    <MobileDataCard
+      key={item.id}
+      title={item.materialName}
+      subtitle={`${item.project?.code || '-'} - ${item.warehouse?.code || '-'}`}
+      meta={renderReadyBadge(item)}
+    >
+      <p className="text-xs leading-5 text-slate-500">{item.taskName}</p>
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <span className="block font-bold uppercase tracking-wide text-slate-400">Qty</span>
+          <span className="mt-1 block font-semibold text-slate-700">{item.quantity} {item.unit}</span>
+        </div>
+        <div>
+          <span className="block font-bold uppercase tracking-wide text-slate-400">QC</span>
+          <span className="mt-1 block">{renderQcBadge(item)}</span>
+        </div>
+      </div>
+      <div>
+        <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-400">Production Status</span>
+        {renderStatusSelect(item, true)}
+      </div>
+    </MobileDataCard>
+  ));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -148,69 +224,13 @@ export default function Warehouses() {
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] border-collapse text-left">
-              <thead>
-                <tr className="border-y border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                  <th className="px-5 py-4">Project</th>
-                  <th className="px-5 py-4">Warehouse</th>
-                  <th className="px-5 py-4">Material</th>
-                  <th className="px-5 py-4">Qty</th>
-                  <th className="px-5 py-4">Status</th>
-                  <th className="px-5 py-4">QC</th>
-                  <th className="px-5 py-4">Shipping</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {workItems.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-blue-50/40">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-800">{item.project?.code}</p>
-                      <p className="text-sm text-slate-500">{item.project?.name}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-800">{item.warehouse?.code}</p>
-                      <p className="text-sm text-slate-500">{item.warehouse?.name}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-800">{item.materialName}</p>
-                      <p className="text-sm text-slate-500">{item.taskName}</p>
-                    </td>
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-700">
-                      {item.quantity} {item.unit}
-                    </td>
-                    <td className="px-5 py-4">
-                      <select
-                        aria-label={`Status for ${item.materialName}`}
-                        value={item.status}
-                        disabled={!permissions.canUpdateProduction || savingItemId === item.id}
-                        onChange={(event) => handleStatusChange(item, event.target.value)}
-                        className={`w-[150px] rounded-lg border px-3 py-2 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-70 ${statusStyles[item.status]}`}
-                      >
-                        {WORK_STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                      {savingItemId === item.id && (
-                        <p className="mt-1 text-xs font-semibold text-blue-600">Saving...</p>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded border px-2.5 py-1 text-xs font-bold ${qcStatusStyles[item.qcStatus]}`}>
-                        {item.qcStatus}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded border px-2.5 py-1 text-xs font-bold ${readyStyles[item.readyToShip]}`}>
-                        {item.readyToShip ? 'Ready' : 'Not Ready'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="p-4 pt-0 md:p-0">
+            <ResponsiveTable
+              headers={['Project', 'Warehouse', 'Material', 'Qty', 'Status', 'QC', 'Shipping']}
+              mobileCards={mobileCards}
+            >
+              <tbody className="divide-y divide-slate-100">{tableRows}</tbody>
+            </ResponsiveTable>
           </div>
         )}
       </Surface>

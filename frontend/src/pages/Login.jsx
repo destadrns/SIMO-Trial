@@ -17,10 +17,11 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showDemoHelper, setShowDemoHelper] = useState(false);
+  const canShowDemoHelper = import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true';
 
   const fillDemoAccount = (accountEmail) => {
     setEmail(accountEmail);
-    setPassword('password');
     setError('');
   };
 
@@ -57,7 +58,7 @@ export default function Login() {
           </div>
 
           <div className="mt-10 space-y-3 border-t border-white/10 pt-6">
-            {['Produksi terpantau per proyek dan warehouse', 'QC gate memastikan material siap kirim', 'Audit trail mendukung cerita demo akhir'].map((item) => (
+            {['Monitoring produksi terpusat', 'QC gate sebelum pengiriman', 'Manifest logistik dan audit trail'].map((item) => (
               <div key={item} className="flex items-start gap-3">
                 <span className="mt-1.5 h-2 w-2 rounded-full bg-emerald-400"></span>
                 <span className="text-sm font-medium leading-6 text-slate-300">{item}</span>
@@ -78,7 +79,7 @@ export default function Login() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-slate-900">Masuk ke SIMO</h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Gunakan akun demo sesuai peran untuk menjalankan alur produksi, QC, logistik, dan audit.
+              Masuk menggunakan akun internal yang telah diberikan oleh administrator.
             </p>
           </div>
 
@@ -154,25 +155,37 @@ export default function Login() {
             </a>
           </div>
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <UserRoundCheck className="text-blue-600" size={18} />
-              <p className="text-sm font-bold text-slate-800">Akun demo kelas</p>
+          {canShowDemoHelper && (
+            <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <button
+                type="button"
+                onClick={() => setShowDemoHelper((current) => !current)}
+                className="flex w-full items-center justify-between gap-3 text-left text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <span className="flex items-center gap-2">
+                  <UserRoundCheck className="text-blue-600" size={18} />
+                  Development demo helper
+                </span>
+                <span className="text-xs font-semibold text-slate-500">{showDemoHelper ? 'Hide' : 'Show'}</span>
+              </button>
+
+              {showDemoHelper && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {DEMO_ACCOUNTS.map((account) => (
+                    <button
+                      key={account.email}
+                      type="button"
+                      onClick={() => fillDemoAccount(account.email)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    >
+                      <span className="block font-bold text-slate-900">{account.role}</span>
+                      <span className="block truncate text-slate-500">{account.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {DEMO_ACCOUNTS.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  onClick={() => fillDemoAccount(account.email)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                >
-                  <span className="block font-bold text-slate-900">{account.role}</span>
-                  <span className="block truncate text-slate-500">{account.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

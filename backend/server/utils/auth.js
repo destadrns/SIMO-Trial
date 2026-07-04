@@ -1,6 +1,7 @@
-﻿import jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { get } from '../db/database.js';
 import { HttpError } from './http.js';
+import { getSessionCookieName, readCookie } from './sessionCookie.js';
 
 export function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -15,11 +16,12 @@ export function getJwtSecret() {
 export async function requireAuth(req, res, next) {
   void res;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const cookieToken = readCookie(req, getSessionCookieName());
+  if ((!authHeader || !authHeader.startsWith('Bearer ')) && !cookieToken) {
     throw new HttpError(401, 'UNAUTHORIZED', 'Akses ditolak. Token autentikasi diperlukan.');
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : cookieToken;
   let decoded;
   try {
     decoded = jwt.verify(token, getJwtSecret());

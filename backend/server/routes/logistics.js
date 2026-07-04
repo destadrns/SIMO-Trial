@@ -425,7 +425,7 @@ export function createLogisticsRouter(db) {
     const manifest = requireRecord(await getManifest(db, req.params.id), 'Logistics manifest');
     const status = validateStatus(req.body?.status || manifest.delivery_status);
     const locationText = requireNonEmptyString(req.body?.locationText, 'locationText');
-    const notes = req.body?.notes || '';
+    const notes = String(req.body?.notes || '').trim();
     const actor = await resolveActor(db, req.user.id);
     const id = `dci-${randomUUID()}`;
 

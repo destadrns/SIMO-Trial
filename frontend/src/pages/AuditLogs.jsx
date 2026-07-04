@@ -57,6 +57,7 @@ function escapeCsv(value) {
 export default function AuditLogs() {
   const { data } = useAppData();
   const [moduleFilter, setModuleFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
   const [exportMessage, setExportMessage] = useState('');
@@ -71,9 +72,14 @@ export default function AuditLogs() {
         (log) =>
           (moduleFilter === 'all' || getAuditArea(log) === moduleFilter) &&
           (roleFilter === 'all' || log.role === roleFilter) &&
-          (actionFilter === 'all' || log.action === actionFilter),
+          (actionFilter === 'all' || log.action === actionFilter)
+          && (() => {
+            const query = searchTerm.trim().toLowerCase();
+            if (!query) return true;
+            return [log.user, log.role, log.action, log.entityType, log.entityId, log.description, log.createdAt, getAuditArea(log)].some((value) => String(value || '').toLowerCase().includes(query));
+          })(),
       ),
-    [actionFilter, data.auditLogs, moduleFilter, roleFilter],
+    [actionFilter, data.auditLogs, moduleFilter, roleFilter, searchTerm],
   );
 
   const handleExport = () => {
@@ -170,6 +176,17 @@ export default function AuditLogs() {
       />
 
       {exportMessage && <AlertMessage type="success" title="CSV export ready">{exportMessage}</AlertMessage>}
+
+      <div className="mb-3">
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Search actor, action, entity, description, timestamp..."
+          aria-label="Search audit logs"
+        />
+      </div>
 
       <div className="flex flex-wrap gap-4">
         <FilterSelect label="Module" icon={ListFilter} value={moduleFilter} onChange={setModuleFilter}>

@@ -14,7 +14,7 @@ describe('Login Component DOM Tests', () => {
     render(<Login />);
 
     expect(screen.getByText('Masuk ke SIMO')).toBeInTheDocument();
-    expect(screen.getByText('Masuk menggunakan akun internal yang telah diberikan oleh administrator.')).toBeInTheDocument();
+    expect(screen.getByText('Gunakan email perusahaan dan password yang sudah dibuat dari invite atau reset password.')).toBeInTheDocument();
     expect(screen.getByLabelText('Alamat Email')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByText('Lupa password?')).toBeInTheDocument();

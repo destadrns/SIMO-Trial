@@ -79,7 +79,7 @@ export default function Login() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-slate-900">Masuk ke SIMO</h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Masuk menggunakan akun internal yang telah diberikan oleh administrator.
+              Gunakan email perusahaan dan password yang sudah dibuat dari invite atau reset password.
             </p>
           </div>
 

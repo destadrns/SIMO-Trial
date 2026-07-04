@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { createApp } from '../app.js';
-import { closeDatabase, createDatabase, get } from '../db/database.js';
+import { closeDatabase, createDatabase, get, run } from '../db/database.js';
 import { seedDatabase } from '../seed/seedDatabase.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { resetRateLimitersForTests } from '../utils/rateLimiter.js';
 
 process.env.JWT_SECRET ||= 'test-only-jwt-secret';
+process.env.ENABLE_DEV_TOKEN_PREVIEW = 'true';
 
 let db;
 let server;
@@ -390,6 +391,44 @@ test('logistics status update supports Arrived without server errors', async () 
   assert.equal(updated.body.data.deliveryStatus, 'Arrived');
   assert.equal(updated.body.meta.auditCreated, true);
   assert.ok(updated.body.data.arrivalTime);
+
+  currentToken = null;
+});
+
+test('manual logistics check-in stores and returns notes', async () => {
+  const loginRes = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'dewi.lestari@simo.test', password: 'password' }),
+  });
+  currentToken = loginRes.body.data.token;
+
+  const created = await request('/api/logistics/manifests/lm-demo-001/checkins', {
+    method: 'POST',
+    body: JSON.stringify({
+      status: 'On Delivery',
+      locationText: 'Rest Area KM 57',
+      notes: '  Barang diterima sebagian, menunggu konfirmasi lokasi.  ',
+    }),
+  });
+
+  assert.equal(created.response.status, 201);
+  assert.equal(created.body.data.locationText, 'Rest Area KM 57');
+  assert.equal(created.body.data.notes, 'Barang diterima sebagian, menunggu konfirmasi lokasi.');
+
+  const stored = await get(db, 'SELECT notes FROM delivery_checkins WHERE id = ?', [created.body.data.id]);
+  assert.equal(stored.notes, 'Barang diterima sebagian, menunggu konfirmasi lokasi.');
+
+  const manifests = await request('/api/logistics/manifests');
+  assert.equal(manifests.response.status, 200);
+  const manifest = manifests.body.data.find((item) => item.id === 'lm-demo-001');
+  assert.equal(manifest.latestCheckin.notes, 'Barang diterima sebagian, menunggu konfirmasi lokasi.');
+
+  const emptyNotes = await request('/api/logistics/manifests/lm-demo-001/checkins', {
+    method: 'POST',
+    body: JSON.stringify({ status: 'On Delivery', locationText: 'Rest Area KM 58', notes: '   ' }),
+  });
+  assert.equal(emptyNotes.response.status, 201);
+  assert.equal(emptyNotes.body.data.notes, '');
 
   currentToken = null;
 });
@@ -866,6 +905,70 @@ test('admin lifecycle endpoints enforce super admin and status safety', async ()
   assert.equal(login.response.status, 401);
 });
 
+test('account token preview is hidden unless explicitly enabled', async () => {
+  const previousPreview = process.env.ENABLE_DEV_TOKEN_PREVIEW;
+  process.env.ENABLE_DEV_TOKEN_PREVIEW = 'false';
+  try {
+    await loginAs('super.admin@simo.test');
+    const invited = await request('/api/admin/users/invite', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Hidden Preview User', email: 'hidden.preview@simo.test', roleId: 'foreman' }),
+    });
+    assert.equal(invited.response.status, 201);
+    assert.equal(invited.body.data.delivery.to, 'hidden.preview@simo.test');
+    assert.equal(invited.body.data.delivery.inviteToken, undefined);
+    assert.equal(invited.body.data.delivery.inviteUrl, undefined);
+    assert.equal(invited.body.data.delivery.previewUrl, undefined);
+  } finally {
+    process.env.ENABLE_DEV_TOKEN_PREVIEW = previousPreview;
+  }
+});
+
+test('super admin can send reset password email for another active user', async () => {
+  await loginAs('rina.wijaya@simo.test');
+  const forbidden = await request('/api/admin/users/usr-super-admin/reset-password', { method: 'POST' });
+  assert.equal(forbidden.response.status, 403);
+
+  await loginAs('super.admin@simo.test');
+  const target = await get(db, 'SELECT id, token_version FROM users WHERE email = ?', ['budi.santoso@simo.test']);
+  const response = await request(`/api/admin/users/${target.id}/reset-password`, { method: 'POST' });
+  assert.equal(response.response.status, 200);
+  assert.equal(response.body.data.message, 'Instruksi reset password sudah dikirim ke email user.');
+  assert.equal(response.body.data.delivery.to, 'budi.santoso@simo.test');
+  assert.ok(response.body.data.delivery.resetUrl.includes('/reset-password?token='));
+  assert.equal(JSON.stringify(response.body.data).includes('password_hash'), false);
+
+  const updated = await get(db, 'SELECT token_version FROM users WHERE id = ?', [target.id]);
+  assert.equal(Number(updated.token_version), Number(target.token_version) + 1);
+
+  const tokenRow = await get(db, 'SELECT token_hash FROM password_reset_tokens WHERE user_id = ? ORDER BY created_at DESC', [target.id]);
+  assert.ok(tokenRow.token_hash);
+  assert.equal(tokenRow.token_hash.includes('/reset-password?token='), false);
+
+  const logs = await request('/api/audit-logs?module=User%20Management');
+  assert.ok(logs.body.data.some((log) => log.actionType === 'ADMIN_RESET_PASSWORD' && log.entityId === target.id));
+});
+
+test('admin user list is sorted by newest account activity', async () => {
+  await loginAs('super.admin@simo.test');
+  await run(db, "UPDATE users SET last_activity_at = '2000-01-01T00:00:00.000Z'");
+
+  const target = await get(db, 'SELECT id FROM users WHERE email = ?', ['joko.anwar@simo.test']);
+  const updated = await request(`/api/admin/users/${target.id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'SUSPENDED' }),
+  });
+  assert.equal(updated.response.status, 200);
+  assert.ok(updated.body.data.lastActivityAt);
+
+  const list = await request('/api/admin/users');
+  assert.equal(list.response.status, 200);
+  assert.equal(list.body.data[0].id, target.id);
+  assert.ok(list.body.data[0].lastActivityAt);
+
+  await run(db, "UPDATE users SET account_status = 'ACTIVE', is_active = 1 WHERE id = ?", [target.id]);
+});
+
 test('expired invite token is rejected', async () => {
   await loginAs('super.admin@simo.test');
   const invited = await request('/api/admin/users/invite', {
@@ -948,4 +1051,58 @@ test('reports preview and CSV export enforce auth, RBAC, and audit logging', asy
 
   const afterPdfExport = await get(db, "SELECT COUNT(*) AS count FROM audit_logs WHERE module = 'Reports' AND action_type = 'EXPORT_REPORT_PDF'");
   assert.equal(Number(afterPdfExport.count), Number(beforePdfExport.count) + 1);
+});
+
+
+test('super admin can change own password and old token is revoked', async () => {
+  const login = await loginAs('super.admin@simo.test', 'password');
+  assert.equal(login.response.status, 200);
+  const oldToken = currentToken;
+
+  const changed = await request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: 'password', newPassword: 'Password1!', confirmPassword: 'Password1!' }),
+  });
+  assert.equal(changed.response.status, 200);
+  assert.equal(changed.body.data.message.includes('Password berhasil diubah'), true);
+
+  const oldSession = await request('/api/audit-logs', { headers: { Authorization: `Bearer ${oldToken}` } });
+  assert.equal(oldSession.response.status, 401);
+
+  const oldLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'super.admin@simo.test', password: 'password' }),
+  });
+  assert.equal(oldLogin.response.status, 401);
+
+  const newLogin = await loginAs('super.admin@simo.test', 'Password1!');
+  assert.equal(newLogin.response.status, 200);
+
+  const restored = await request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: 'Password1!', newPassword: 'Password2!', confirmPassword: 'Password2!' }),
+  });
+  assert.equal(restored.response.status, 200);
+
+  await loginAs('super.admin@simo.test', 'Password2!');
+  const finalRestore = await request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: 'Password2!', newPassword: 'password', confirmPassword: 'password' }),
+  });
+  assert.equal(finalRestore.response.status, 400);
+});
+
+test('change password rejects missing auth and non-super-admin users', async () => {
+  const unauthenticated = await request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: 'password', newPassword: 'Password1!', confirmPassword: 'Password1!' }),
+  });
+  assert.equal(unauthenticated.response.status, 401);
+
+  await loginAs('joko.anwar@simo.test', 'password');
+  const forbidden = await request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: 'password', newPassword: 'Password1!', confirmPassword: 'Password1!' }),
+  });
+  assert.equal(forbidden.response.status, 403);
 });

@@ -21,6 +21,7 @@ export function serializeUser(row) {
     activatedAt: row.activated_at,
     passwordChangedAt: row.password_changed_at,
     disabledAt: row.disabled_at,
+    lastActivityAt: row.last_activity_at || row.password_changed_at || row.invited_at || row.activated_at || row.disabled_at || row.created_at,
     createdAt: row.created_at,
   };
 }

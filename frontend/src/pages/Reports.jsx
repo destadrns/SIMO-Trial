@@ -47,6 +47,7 @@ export default function Reports() {
   const [period, setPeriod] = useState({ startDate: firstDayOfYear(), endDate: today() });
   const [preview, setPreview] = useState(null);
   const [message, setMessage] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -69,7 +70,12 @@ export default function Reports() {
   );
 
   const summaryEntries = preview ? Object.entries(preview.summary || {}) : [];
-  const previewRows = preview?.rows || [];
+  const previewRows = useMemo(() => {
+    const rows = preview?.rows || [];
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) => Object.values(row).some((value) => String(value || '').toLowerCase().includes(query)));
+  }, [preview, searchTerm]);
   const columns = preview?.columns || [];
 
   const loadPreview = async () => {
@@ -200,6 +206,17 @@ export default function Reports() {
                 <StatusBadge tone="emerald">{preview.rowCount} rows</StatusBadge>
                 <StatusBadge tone="slate">By {preview.generatedBy.name}</StatusBadge>
                 <StatusBadge tone="slate">{new Date(preview.generatedAt).toLocaleString('id-ID')}</StatusBadge>
+              </div>
+
+              <div>
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Search preview rows..."
+                  aria-label="Search report preview"
+                />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Activity, Building2, CheckCircle2, ClipboardList, PackageCheck, ShieldCheck } from 'lucide-react';
 import { useAppData } from '../context/AppDataCore';
 import { EmptyState, MetricCard, PageHeader, SectionHeading, StatusBadge, Surface } from '../components/ui';
@@ -63,7 +64,11 @@ const ProgressRow = ({ title, subtitle, total, completed, percentage, rightLabel
 
 export default function Dashboard() {
   const { data, isLoading, isOffline, metrics } = useAppData();
-  const qcQueue = data.workItems.filter((item) => item.status === 'Done' && !item.readyToShip);
+  const [searchTerm, setSearchTerm] = useState('');
+  const query = searchTerm.trim().toLowerCase();
+  const projectProgress = metrics.projectProgress.filter((project) => !query || [project.code, project.name, project.client, project.priority].some((value) => String(value || '').toLowerCase().includes(query)));
+  const warehouseProgress = metrics.warehouseProgress.filter((warehouse) => !query || [warehouse.code, warehouse.name, warehouse.category, warehouse.projectCodes?.join(' ')].some((value) => String(value || '').toLowerCase().includes(query)));
+  const qcQueue = data.workItems.filter((item) => item.status === 'Done' && !item.readyToShip).filter((item) => !query || [item.materialName, item.qcStatus, data.projects.find((entry) => entry.id === item.projectId)?.code, data.warehouses.find((entry) => entry.id === item.warehouseId)?.code].some((value) => String(value || '').toLowerCase().includes(query)));
   const todayLabel = new Intl.DateTimeFormat('id-ID', {
     weekday: 'long',
     day: 'numeric',
@@ -86,6 +91,15 @@ export default function Dashboard() {
             {isLoading && <StatusBadge tone="amber">Loading data...</StatusBadge>}
           </>
         }
+      />
+
+      <input
+        type="search"
+        value={searchTerm}
+        onChange={(event) => setSearchTerm(event.target.value)}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Search projects, warehouses, or blocked QC items..."
+        aria-label="Search dashboard"
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -129,7 +143,7 @@ export default function Dashboard() {
           />
 
           <div className="mt-2">
-            {metrics.projectProgress.length > 0 ? metrics.projectProgress.map((project) => (
+            {projectProgress.length > 0 ? projectProgress.map((project) => (
               <ProgressRow
                 key={project.id}
                 title={`${project.code} - ${project.name}`}
@@ -154,7 +168,7 @@ export default function Dashboard() {
           />
 
           <div className="mt-2">
-            {metrics.warehouseProgress.length > 0 ? metrics.warehouseProgress.map((warehouse) => (
+            {warehouseProgress.length > 0 ? warehouseProgress.map((warehouse) => (
               <ProgressRow
                 key={warehouse.id}
                 title={`${warehouse.code} - ${warehouse.name}`}

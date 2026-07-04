@@ -14,10 +14,12 @@ describe('Login Component DOM Tests', () => {
     render(<Login />);
 
     expect(screen.getByText('Masuk ke SIMO')).toBeInTheDocument();
-    expect(screen.getByText('Gunakan akun demo sesuai peran untuk menjalankan alur produksi, QC, logistik, dan audit.')).toBeInTheDocument();
+    expect(screen.getByText('Masuk menggunakan akun internal yang telah diberikan oleh administrator.')).toBeInTheDocument();
     expect(screen.getByLabelText('Alamat Email')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByText('Lupa password?')).toBeInTheDocument();
+    expect(screen.queryByText('Akun demo kelas')).not.toBeInTheDocument();
+    expect(screen.queryByText('super.admin@simo.test')).not.toBeInTheDocument();
     expect(screen.queryByText(/Create Account|Register|Daftar Akun/i)).not.toBeInTheDocument();
   });
 

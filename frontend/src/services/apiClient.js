@@ -1,4 +1,4 @@
-﻿export const useBackendApi =
+export const useBackendApi =
   String(import.meta.env.VITE_USE_BACKEND_API || 'true').toLowerCase() === 'true';
 
 const TOKEN_KEY = 'simo-mugi-jaya-token';
@@ -63,6 +63,30 @@ export function inviteUser(payload) {
   });
 }
 
+
+export function getAdminUsers() {
+  return apiRequest('/admin/users');
+}
+
+export function resendUserInvite(userId) {
+  return apiRequest(`/admin/users/${userId}/resend-invite`, {
+    method: 'POST',
+  });
+}
+
+export function changeUserRole(userId, roleId) {
+  return apiRequest(`/admin/users/${userId}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ roleId }),
+  });
+}
+
+export function changeUserStatus(userId, status) {
+  return apiRequest(`/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
 export function acceptInvite(payload) {
   return apiRequest('/auth/invite/accept', {
     method: 'POST',

@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { get, run, withTransaction } from '../db/database.js';
@@ -8,11 +8,12 @@ import { getJwtSecret } from '../utils/auth.js';
 import { getAppBaseUrl, sendPasswordResetEmail } from '../utils/email.js';
 import { asyncHandler, HttpError, sendData } from '../utils/http.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
+import { createRateLimiter } from '../utils/rateLimiter.js';
 import { serializeUser } from '../utils/serializers.js';
 
 function signUserToken(user) {
   return jwt.sign(
-    { id: user.id, name: user.name, email: user.email, roleId: user.role_id, roleName: user.role_name },
+    { id: user.id, name: user.name, email: user.email, roleId: user.role_id, roleName: user.role_name, tokenVersion: Number(user.token_version || 0) },
     getJwtSecret(),
     { expiresIn: '24h' },
   );
@@ -55,10 +56,30 @@ async function findValidReset(db, token) {
   );
 }
 
+const loginLimiter = createRateLimiter({
+  name: 'auth-login',
+  max: 8,
+  windowMs: 15 * 60 * 1000,
+  keyParts: [(req) => req.body?.email],
+});
+
+const forgotPasswordLimiter = createRateLimiter({
+  name: 'auth-forgot-password',
+  max: 5,
+  windowMs: 15 * 60 * 1000,
+  keyParts: [(req) => req.body?.email],
+});
+
+const tokenActionLimiter = createRateLimiter({
+  name: 'auth-token-action',
+  max: 10,
+  windowMs: 15 * 60 * 1000,
+  keyParts: [(req) => req.body?.token],
+});
 export function createAuthRouter(db) {
   const router = Router();
 
-  router.post('/login', asyncHandler(async (req, res) => {
+  router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
     const { email, password } = req.body || {};
     const normalizedEmail = String(email || '').trim().toLowerCase();
 
@@ -120,7 +141,7 @@ export function createAuthRouter(db) {
     });
   }));
 
-  router.post(['/invite/accept', '/invites/accept'], asyncHandler(async (req, res) => {
+  router.post(['/invite/accept', '/invites/accept'], tokenActionLimiter, asyncHandler(async (req, res) => {
     const { token, password, confirmPassword } = req.body || {};
     if (!token) throw new HttpError(400, 'VALIDATION_ERROR', 'Token wajib diisi.');
     assertPassword(password, confirmPassword ?? password);
@@ -169,7 +190,7 @@ export function createAuthRouter(db) {
     const user = await get(db, `SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?`, [invite.user_id]);
     sendData(res, { user: serializeUser(user) });
   }));
-  router.post('/password/forgot', asyncHandler(async (req, res) => {
+  router.post(['/password/forgot', '/forgot-password'], forgotPasswordLimiter, asyncHandler(async (req, res) => {
     const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
     const reset = createAccountToken('reset');
     const expiresAt = hoursFromNow(0.5);
@@ -213,7 +234,7 @@ export function createAuthRouter(db) {
     sendData(res, { email: reset.email, resetStatus: 'VALID' });
   }));
 
-  router.post('/password/reset', asyncHandler(async (req, res) => {
+  router.post(['/password/reset', '/reset-password'], tokenActionLimiter, asyncHandler(async (req, res) => {
     const { token, password, confirmPassword } = req.body || {};
     if (!token) throw new HttpError(400, 'VALIDATION_ERROR', 'Token wajib diisi.');
     assertPassword(password, confirmPassword ?? password);
@@ -224,7 +245,7 @@ export function createAuthRouter(db) {
     }
 
     await withTransaction(db, async () => {
-      await run(db, 'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hashPassword(password), reset.user_id]);
+      await run(db, 'UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, token_version = COALESCE(token_version, 0) + 1 WHERE id = ?', [hashPassword(password), reset.user_id]);
       await run(db, 'UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?', [reset.id]);
       await writeAuditLog(db, {
         actor: { id: reset.user_id, name: reset.email, roleName: 'Account Owner' },
@@ -235,7 +256,7 @@ export function createAuthRouter(db) {
         entityId: reset.user_id,
         tableName: 'users',
         previousValue: null,
-        newValue: JSON.stringify({ passwordChanged: true }),
+        newValue: JSON.stringify({ passwordChanged: true, tokenVersionIncremented: true }),
         description: 'User reset account password.',
       });
     });

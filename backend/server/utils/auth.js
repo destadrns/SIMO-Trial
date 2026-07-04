@@ -1,4 +1,5 @@
-import jwt from 'jsonwebtoken';
+﻿import jwt from 'jsonwebtoken';
+import { get } from '../db/database.js';
 import { HttpError } from './http.js';
 
 export function getJwtSecret() {
@@ -11,20 +12,43 @@ export function getJwtSecret() {
   return secret;
 }
 
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
+  void res;
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new HttpError(401, 'UNAUTHORIZED', 'Akses ditolak. Token autentikasi diperlukan.');
   }
 
   const token = authHeader.split(' ')[1];
+  let decoded;
   try {
-    const decoded = jwt.verify(token, getJwtSecret());
-    req.user = decoded;
-    next();
+    decoded = jwt.verify(token, getJwtSecret());
   } catch {
     throw new HttpError(401, 'INVALID_TOKEN', 'Token tidak valid atau kedaluwarsa.');
   }
+
+  const db = req.app?.locals?.db;
+  if (db) {
+    const user = await get(
+      db,
+      `SELECT u.token_version, u.is_active, u.account_status, r.name AS role_name
+         FROM users u
+         JOIN roles r ON r.id = u.role_id
+        WHERE u.id = ?`,
+      [decoded.id],
+    );
+
+    if (!user || !user.is_active || user.account_status !== 'ACTIVE') {
+      throw new HttpError(401, 'TOKEN_REVOKED', 'Sesi tidak aktif. Silakan login ulang.');
+    }
+
+    if (Number(decoded.tokenVersion || 0) !== Number(user.token_version || 0)) {
+      throw new HttpError(401, 'TOKEN_REVOKED', 'Sesi sudah tidak berlaku. Silakan login ulang.');
+    }
+  }
+
+  req.user = decoded;
+  next();
 }
 
 export function requireRoles(...allowedRoles) {

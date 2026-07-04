@@ -7,6 +7,7 @@ import { createAuditLogsRouter } from './routes/auditLogs.js';
 import { createLogisticsRouter } from './routes/logistics.js';
 import { createProjectsRouter } from './routes/projects.js';
 import { createQcChecklistsRouter } from './routes/qcChecklists.js';
+import { createReportsRouter } from './routes/reports.js';
 import { createRolesRouter } from './routes/roles.js';
 import { createUsersRouter } from './routes/users.js';
 import {
@@ -64,6 +65,7 @@ export function createApp({ db }) {
   app.use('/api/warehouses', createWarehousesRouter(db));
   app.use('/api/work-items', createWorkItemsRouter(db));
   app.use('/api/qc-checklists', createQcChecklistsRouter(db));
+  app.use('/api/reports', createReportsRouter(db));
   app.use('/api/logistics', createLogisticsRouter(db));
   app.use('/api/audit-logs', createAuditLogsRouter(db));
 

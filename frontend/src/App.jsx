@@ -6,6 +6,7 @@ import {
   Truck,
   CheckSquare,
   FileText,
+  BarChart3,
   Search,
   User,
   UserPlus,
@@ -22,6 +23,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Logistics = lazy(() => import('./pages/Logistics'));
 const DriverTracking = lazy(() => import('./pages/DriverTracking'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const Reports = lazy(() => import('./pages/Reports'));
 const Warehouses = lazy(() => import('./pages/Warehouses'));
 const QualityControl = lazy(() => import('./pages/QualityControl'));
 const MasterData = lazy(() => import('./pages/MasterData'));
@@ -144,6 +146,9 @@ const Layout = ({ children }) => {
           {permissions.canSubmitQc && (
             <SidebarItem icon={CheckSquare} label="QC" path="/qc" />
           )}
+          {permissions.canViewReports && (
+            <SidebarItem icon={BarChart3} label="Reports" path="/reports" />
+          )}
           {permissions.canViewAudit && (
             <SidebarItem icon={FileText} label="Audit Logs" path="/audit" />
           )}
@@ -201,6 +206,12 @@ function ProtectedAppRoutes() {
           path="/audit"
           element={
             permissions.canViewAudit ? <AuditLogs /> : <Navigate to="/" replace />
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            permissions.canViewReports ? <Reports /> : <Navigate to="/" replace />
           }
         />
         <Route

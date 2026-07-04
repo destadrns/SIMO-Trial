@@ -797,3 +797,41 @@ test('auth lifecycle audit events do not store secrets', async () => {
   assert.ok(rows.body.data.some((log) => ['LOGIN_SUCCESS', 'LOGIN_FAILED'].includes(log.actionType)));
   assert.equal(JSON.stringify(rows.body.data).includes('wrong-password'), false);
 });
+
+test('reports preview and CSV export enforce auth, RBAC, and audit logging', async () => {
+  const noToken = await request('/api/reports/production/preview?startDate=2026-01-01&endDate=2026-12-31');
+  assert.equal(noToken.response.status, 401);
+
+  await loginAs('siti.nurhaliza@simo.test');
+  const forbidden = await request('/api/reports/logistics/preview?startDate=2026-01-01&endDate=2026-12-31');
+  assert.equal(forbidden.response.status, 403);
+
+  await loginAs('super.admin@simo.test');
+  const invalidPeriod = await request('/api/reports/production/preview?startDate=2026-12-31&endDate=2026-01-01');
+  assert.equal(invalidPeriod.response.status, 400);
+  assert.equal(invalidPeriod.body.error.code, 'INVALID_REPORT_PERIOD');
+
+  const invalidType = await request('/api/reports/missing/preview?startDate=2026-01-01&endDate=2026-12-31');
+  assert.equal(invalidType.response.status, 404);
+  assert.equal(invalidType.body.error.code, 'REPORT_NOT_FOUND');
+
+  const preview = await request('/api/reports/production/preview?startDate=2026-01-01&endDate=2026-12-31');
+  assert.equal(preview.response.status, 200);
+  assert.equal(preview.body.data.type, 'production');
+  assert.equal(preview.body.data.generatedBy.email, undefined);
+  assert.ok(Array.isArray(preview.body.data.rows));
+  assert.equal(JSON.stringify(preview.body.data).includes('password_hash'), false);
+
+  const beforeExport = await get(db, "SELECT COUNT(*) AS count FROM audit_logs WHERE module = 'Reports' AND action_type = 'EXPORT_REPORT_CSV'");
+  const csvResponse = await fetch(`${baseUrl}/api/reports/production/export.csv?startDate=2026-01-01&endDate=2026-12-31`, {
+    headers: { Authorization: `Bearer ${currentToken}` },
+  });
+  const csv = await csvResponse.text();
+  assert.equal(csvResponse.status, 200);
+  assert.match(csvResponse.headers.get('content-type'), /text\/csv/);
+  assert.match(csv, /Production Report/);
+  assert.equal(csv.includes('password_hash'), false);
+
+  const afterExport = await get(db, "SELECT COUNT(*) AS count FROM audit_logs WHERE module = 'Reports' AND action_type = 'EXPORT_REPORT_CSV'");
+  assert.equal(Number(afterExport.count), Number(beforeExport.count) + 1);
+});

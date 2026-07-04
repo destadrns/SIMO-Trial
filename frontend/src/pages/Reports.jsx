@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Download, Eye, FileSpreadsheet, ShieldCheck } from 'lucide-react';
-import { getReportTypes, previewReport, exportReportCsv } from '../services/reportsApi';
+import { getReportTypes, previewReport, exportReportCsv, exportReportPdf } from '../services/reportsApi';
 import {
   ActionButton,
   AlertMessage,
@@ -20,6 +20,15 @@ function today() {
 
 function firstDayOfYear() {
   return `${new Date().getFullYear()}-01-01`;
+}
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function saveCsv(text, filename) {
@@ -94,6 +103,21 @@ export default function Reports() {
     }
   };
 
+  const downloadPdf = async () => {
+    setError('');
+    setMessage('');
+    setIsLoading(true);
+    try {
+      const response = await exportReportPdf(selectedType, period);
+      saveBlob(response.blob, `${selectedType}-${period.startDate}-to-${period.endDate}.pdf`);
+      setMessage('PDF report berhasil dibuat dan dicatat di audit log.');
+    } catch (err) {
+      setError(err?.message || 'PDF export gagal dibuat.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const tableRows = previewRows.map((row, index) => (
     <tr key={`${preview.type}-${index}`} className="transition-colors hover:bg-slate-50">
       {columns.map((column) => (
@@ -125,7 +149,7 @@ export default function Reports() {
           <>
             <StatusBadge tone="blue">{types.length} report types</StatusBadge>
             <StatusBadge tone="emerald">CSV enabled</StatusBadge>
-            <StatusBadge tone="slate">PDF next sprint</StatusBadge>
+            <StatusBadge tone="emerald">PDF enabled</StatusBadge>
           </>
         }
       />
@@ -151,6 +175,7 @@ export default function Reports() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
               <ActionButton icon={Eye} onClick={loadPreview} disabled={!selectedType || isLoading} className="w-full">{isLoading ? 'Loading...' : 'Preview'}</ActionButton>
               <ActionButton icon={Download} tone="secondary" onClick={downloadCsv} disabled={!preview || isLoading} className="w-full">Export CSV</ActionButton>
+              <ActionButton icon={Download} tone="secondary" onClick={downloadPdf} disabled={!preview || isLoading} className="w-full">Export PDF</ActionButton>
             </div>
           </div>
         </Surface>

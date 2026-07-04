@@ -3,9 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import Reports from '../pages/Reports';
 
 vi.mock('../services/reportsApi', () => ({
-  getReportTypes: vi.fn(() => Promise.resolve({ data: [{ id: 'production', title: 'Production Report', formats: ['csv'] }] })),
+  getReportTypes: vi.fn(() => Promise.resolve({ data: [{ id: 'production', title: 'Production Report', formats: ['csv', 'pdf'] }] })),
   previewReport: vi.fn(),
   exportReportCsv: vi.fn(),
+  exportReportPdf: vi.fn(),
 }));
 
 describe('Reports page', () => {
@@ -19,5 +20,6 @@ describe('Reports page', () => {
     expect((await screen.findAllByText('Production Report')).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Preview/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Export CSV/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Export PDF/i })).toBeInTheDocument();
   });
 });

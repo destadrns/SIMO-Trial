@@ -99,3 +99,18 @@ export async function apiTextRequest(path, options = {}) {
   }
   return { text, headers: response.headers };
 }
+
+
+export async function apiBlobRequest(path, options = {}) {
+  const token = window.localStorage.getItem(TOKEN_KEY);
+  const headers = { ...options.headers };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers });
+  if (!response.ok) {
+    const error = new Error(await response.text() || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
+    error.status = response.status;
+    throw error;
+  }
+  return { blob: await response.blob(), headers: response.headers };
+}

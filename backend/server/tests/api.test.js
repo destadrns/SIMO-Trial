@@ -834,4 +834,16 @@ test('reports preview and CSV export enforce auth, RBAC, and audit logging', asy
 
   const afterExport = await get(db, "SELECT COUNT(*) AS count FROM audit_logs WHERE module = 'Reports' AND action_type = 'EXPORT_REPORT_CSV'");
   assert.equal(Number(afterExport.count), Number(beforeExport.count) + 1);
+
+  const beforePdfExport = await get(db, "SELECT COUNT(*) AS count FROM audit_logs WHERE module = 'Reports' AND action_type = 'EXPORT_REPORT_PDF'");
+  const pdfResponse = await fetch(`${baseUrl}/api/reports/production/export.pdf?startDate=2026-01-01&endDate=2026-12-31`, {
+    headers: { Authorization: `Bearer ${currentToken}` },
+  });
+  const pdf = await pdfResponse.arrayBuffer();
+  assert.equal(pdfResponse.status, 200);
+  assert.equal(pdfResponse.headers.get('content-type'), 'application/pdf');
+  assert.equal(Buffer.from(pdf).subarray(0, 5).toString(), '%PDF-');
+
+  const afterPdfExport = await get(db, "SELECT COUNT(*) AS count FROM audit_logs WHERE module = 'Reports' AND action_type = 'EXPORT_REPORT_PDF'");
+  assert.equal(Number(afterPdfExport.count), Number(beforePdfExport.count) + 1);
 });

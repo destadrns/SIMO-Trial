@@ -25,6 +25,7 @@ export function createApp({ db }) {
   getJwtSecret();
 
   const app = express();
+  app.locals.db = db;
 
   app.disable('x-powered-by');
   app.use(cors({

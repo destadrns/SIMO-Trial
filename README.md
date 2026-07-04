@@ -481,6 +481,8 @@ Bagian ini menjelaskan keputusan keamanan yang sudah kami terapkan selama develo
 - Driver GPS tracking memakai token per manifest dan token dapat di-regenerate dari halaman Logistics.
 - Upload evidence disajikan lewat route authenticated agar file tidak menjadi public static bebas.
 - Invite token dan reset password token disimpan sebagai hash SHA-256 dan bersifat one-time-use.
+- Sensitive auth endpoints memakai rate limiting in-memory untuk login, forgot password, accept invite, dan reset password.
+- JWT membawa `tokenVersion`; password reset menaikkan versi token agar sesi lama otomatis ditolak.
 - Login, failed login, invite, reset password, dan export report dicatat ke audit log tanpa menyimpan password/token mentah.
 
 Cek env ignored:
@@ -497,7 +499,7 @@ Catatan ini dipakai tim sebagai batas scope MVP dan bahan sprint lanjutan.
 
 - Live map saat ini memakai polling 5 detik; realtime WebSocket/SSE disiapkan untuk fase Logistics Pro.
 - ETA, geofencing, dan route deviation alert masuk backlog logistics lanjutan.
-- JWT masih disimpan di `localStorage` untuk kebutuhan demo; migrasi HttpOnly Secure SameSite cookie disiapkan untuk production hardening.
+- JWT masih disimpan di `localStorage` untuk kebutuhan demo; token version sudah memutus sesi lama setelah reset password, dan migrasi HttpOnly Secure SameSite cookie disiapkan untuk production hardening.
 - Konfigurasi SMTP production dikelola per environment; mode development mengembalikan invite/reset URL untuk demo lokal.
 - Schema database dibuat additive lewat startup guard; migration versioning formal masuk fase stabilization.
 - Deployment production, backup, dan monitoring disiapkan sebagai pekerjaan environment, bukan bagian dari demo lokal.
@@ -554,7 +556,7 @@ Scope yang sudah berjalan:
 - Live map tracking dengan simulator rute demo.
 - Audit logs.
 - Report Center dengan preview, CSV export, dan PDF export.
-- Internal account lifecycle untuk invite user dan reset password.
+- Internal account lifecycle untuk invite user, reset password, session revocation, dan Super Admin user actions.
 
 Fokus berikutnya adalah production hardening, deployment, backup strategy, monitoring, dan regression QA.
 

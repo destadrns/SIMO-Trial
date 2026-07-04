@@ -1,9 +1,10 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { createApp } from '../app.js';
 import { closeDatabase, createDatabase, get } from '../db/database.js';
 import { seedDatabase } from '../seed/seedDatabase.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
+import { resetRateLimitersForTests } from '../utils/rateLimiter.js';
 
 process.env.JWT_SECRET ||= 'test-only-jwt-secret';
 
@@ -72,6 +73,7 @@ after(async () => {
 
 beforeEach(() => {
   currentToken = null;
+  resetRateLimitersForTests();
 });
 
 test('health and collection endpoints return data envelopes', async () => {
@@ -721,6 +723,106 @@ test('forgot password uses generic response and one-time reset token', async () 
 
 
 
+
+test('auth rate limiting blocks repeated sensitive requests without breaking normal login', async () => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const failed = await request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'rate.limit@simo.test', password: 'wrong-password' }),
+    });
+    assert.equal(failed.response.status, 401);
+  }
+
+  const limited = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'rate.limit@simo.test', password: 'wrong-password' }),
+  });
+  assert.equal(limited.response.status, 429);
+  assert.equal(limited.body.error.code, 'RATE_LIMITED');
+
+  resetRateLimitersForTests();
+  const forgotPayload = { email: 'dewi.lestari@simo.test' };
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const forgot = await request('/api/auth/password/forgot', {
+      method: 'POST',
+      body: JSON.stringify(forgotPayload),
+    });
+    assert.equal(forgot.response.status, 200);
+  }
+  const forgotLimited = await request('/api/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify(forgotPayload),
+  });
+  assert.equal(forgotLimited.response.status, 429);
+
+  resetRateLimitersForTests();
+  const login = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'super.admin@simo.test', password: 'password' }),
+  });
+  assert.equal(login.response.status, 200);
+  assert.equal(login.body.data.user.email, 'super.admin@simo.test');
+});
+
+test('password reset revokes old JWT and new login receives fresh token version', async () => {
+  await loginAs('super.admin@simo.test');
+  const invited = await request('/api/admin/users/invite', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Revoked Token User', email: 'revoked.token@simo.test', roleId: 'foreman' }),
+  });
+  assert.equal(invited.response.status, 201);
+
+  currentToken = null;
+  const accepted = await request('/api/auth/invite/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token: invited.body.data.delivery.inviteToken, password: 'Start123' }),
+  });
+  assert.equal(accepted.response.status, 200);
+
+  const login = await loginAs('revoked.token@simo.test', 'Start123');
+  assert.equal(login.response.status, 200);
+  const oldToken = currentToken;
+
+  const beforeReset = await request('/api/work-items/wi-001/status', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${oldToken}` },
+    body: JSON.stringify({ status: 'In-Progress' }),
+  });
+  assert.equal(beforeReset.response.status, 200);
+
+  const forgot = await request('/api/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'revoked.token@simo.test' }),
+  });
+  assert.equal(forgot.response.status, 200);
+
+  const reset = await request('/api/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token: forgot.body.data.delivery.resetToken, password: 'Changed123' }),
+  });
+  assert.equal(reset.response.status, 200);
+
+  const stale = await request('/api/work-items/wi-002/status', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${oldToken}` },
+    body: JSON.stringify({ status: 'In-Progress' }),
+  });
+  assert.equal(stale.response.status, 401);
+  assert.equal(stale.body.error.code, 'TOKEN_REVOKED');
+
+  const newLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'revoked.token@simo.test', password: 'Changed123' }),
+  });
+  assert.equal(newLogin.response.status, 200);
+  currentToken = newLogin.body.data.token;
+
+  const fresh = await request('/api/work-items/wi-002/status', {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'Done' }),
+  });
+  assert.equal(fresh.response.status, 200);
+});
 test('super admin can read account lifecycle audit logs', async () => {
   await loginAs('super.admin@simo.test');
 

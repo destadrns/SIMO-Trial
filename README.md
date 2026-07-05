@@ -1,3 +1,11 @@
+﻿---
+title: SIMO Trial API
+emoji: 🏭
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
 # SIMO Mugi Jaya
 
 **SIMO Mugi Jaya** adalah sistem informasi operasional full-stack untuk mengelola alur kerja produksi, warehouse, quality control, audit trail, dan logistics tracking dalam satu dashboard modern.
@@ -610,3 +618,4 @@ POST   /api/auth/password/forgot
 GET    /api/auth/password/reset/verify?token=...
 POST   /api/auth/password/reset
 ```
+

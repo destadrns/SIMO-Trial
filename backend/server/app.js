@@ -36,6 +36,16 @@ export function createApp({ db }) {
     .map((origin) => origin.trim().replace(/\/$/, ''))
     .filter(Boolean);
 
+  app.use((req, res, next) => {
+    const origin = String(req.headers.origin || '').replace(/\/$/, '');
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Vary', 'Origin');
+    }
+    next();
+  });
+
   app.use(cors({
     origin(origin, callback) {
       if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {

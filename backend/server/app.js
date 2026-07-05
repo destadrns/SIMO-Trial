@@ -1,4 +1,4 @@
-﻿import cors from 'cors';
+import cors from 'cors';
 import express from 'express';
 import { get } from './db/database.js';
 import { createAuthRouter } from './routes/auth.js';
@@ -30,11 +30,24 @@ export function createApp({ db }) {
 
   app.disable('x-powered-by');
   app.set('trust proxy', String(process.env.TRUST_PROXY || 'false').toLowerCase() === 'true');
+
+  const allowedOrigins = String(process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
   app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+        callback(null, true);
+        return;
+      }
+      callback(new HttpError(403, 'CORS_ORIGIN_BLOCKED', 'Origin tidak diizinkan.'));
+    },
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     credentials: true,
+    optionsSuccessStatus: 204,
   }));
   app.use(express.json({ limit: '1mb' }));
 

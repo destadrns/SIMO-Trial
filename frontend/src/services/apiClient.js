@@ -31,7 +31,7 @@ export async function apiRequest(path, options = {}) {
     response = await fetch(apiHostUrl + normalizeApiPath(path), {
       ...options,
       headers,
-      credentials: 'include',
+      credentials: 'omit',
     });
   } catch (error) {
     const networkError = new Error('Layanan sedang tidak dapat dihubungi. Silakan coba beberapa saat lagi.');
@@ -132,7 +132,7 @@ export async function apiTextRequest(path, options = {}) {
   const headers = { ...options.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers, credentials: 'include' });
+  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers, credentials: 'omit' });
   const text = await response.text();
   if (!response.ok) {
     const error = new Error(text || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
@@ -148,7 +148,7 @@ export async function apiBlobRequest(path, options = {}) {
   const headers = { ...options.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers, credentials: 'include' });
+  const response = await fetch(apiHostUrl + normalizeApiPath(path), { ...options, headers, credentials: 'omit' });
   if (!response.ok) {
     const error = new Error(await response.text() || 'Permintaan belum dapat diproses. Silakan coba beberapa saat lagi.');
     error.status = response.status;
